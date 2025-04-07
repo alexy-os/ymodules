@@ -59,11 +59,9 @@ class Plugin {
             return;
         }
 
-        error_log('YModules: Enqueuing admin assets for hook: ' . $hook);
-
         // Enqueue Tailwind
         wp_enqueue_script(
-            'tailwind',
+            'tailwind-cdn',
             'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
             [],
             null,
@@ -74,7 +72,7 @@ class Plugin {
         wp_enqueue_script(
             'ymodules-admin',
             YMODULES_PLUGIN_URL . 'assets/js/admin.js',
-            ['jquery'],
+            ['jquery', 'tailwind-cdn'],
             YMODULES_VERSION,
             true
         );
@@ -83,8 +81,6 @@ class Plugin {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ymodules-nonce'),
         ];
-
-        error_log('YModules: AJAX data: ' . print_r($ajax_data, true));
 
         wp_localize_script('ymodules-admin', 'ymodulesAdmin', $ajax_data);
     }
@@ -95,57 +91,44 @@ class Plugin {
 
     public function handle_module_upload() {
         try {
-            error_log('YModules: Starting module upload');
-            
             check_ajax_referer('ymodules-nonce', 'nonce');
-            error_log('YModules: Nonce check passed');
 
             if (!current_user_can('manage_options')) {
-                error_log('YModules: Permission denied');
                 wp_send_json_error(['message' => __('Permission denied', 'ymodules')]);
             }
 
             if (!isset($_FILES['module'])) {
-                error_log('YModules: No file uploaded');
                 wp_send_json_error(['message' => __('No file uploaded', 'ymodules')]);
             }
 
             $file = $_FILES['module'];
-            error_log('YModules: File info: ' . print_r($file, true));
             
             // Check for upload errors
             if ($file['error'] !== UPLOAD_ERR_OK) {
                 $error_message = $this->get_upload_error_message($file['error']);
-                error_log('YModules: Upload error: ' . $error_message);
                 wp_send_json_error(['message' => $error_message]);
             }
 
             // Validate file size (max 10MB)
             $max_size = 10 * 1024 * 1024; // 10MB in bytes
             if ($file['size'] > $max_size) {
-                error_log('YModules: File too large: ' . $file['size'] . ' bytes');
                 wp_send_json_error(['message' => __('File size exceeds maximum limit of 10MB', 'ymodules')]);
             }
 
-            error_log('YModules: Installing module');
             $result = $this->module_manager->install_module($file);
 
             if (is_wp_error($result)) {
-                error_log('YModules: Installation error: ' . $result->get_error_message());
                 wp_send_json_error([
                     'message' => $result->get_error_message(),
                     'code' => $result->get_error_code()
                 ]);
             }
 
-            error_log('YModules: Module installed successfully');
             wp_send_json_success([
                 'message' => __('Module installed successfully', 'ymodules'),
                 'module' => $result
             ]);
         } catch (\Exception $e) {
-            error_log('YModules: Exception during upload: ' . $e->getMessage());
-            error_log('YModules: Stack trace: ' . $e->getTraceAsString());
             wp_send_json_error([
                 'message' => $e->getMessage(),
                 'code' => 'exception'
@@ -183,21 +166,6 @@ class Plugin {
 
         $modules = $this->module_manager->get_installed_modules();
 
-        wp_send_json_success($modules);
-    }
-
-    public function handle_get_modules() {
-        // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules-nonce')) {
-            wp_send_json_error(['message' => __('Security check failed', 'ymodules')]);
-        }
-
-        // Check user capability
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Permission denied', 'ymodules')]);
-        }
-
-        $modules = $this->module_manager->get_installed_modules();
         wp_send_json_success($modules);
     }
 
@@ -292,17 +260,11 @@ class Plugin {
     }
 
     public function load_active_modules() {
-        error_log('YModules: Loading active modules');
         $modules = $this->module_manager->get_installed_modules();
         
         foreach ($modules as $module) {
             if (isset($module['active']) && $module['active']) {
-                error_log('YModules: Loading active module: ' . $module['slug']);
-                $result = $this->module_manager->activate_module($module['slug']);
-                
-                if (is_wp_error($result)) {
-                    error_log('YModules: Error loading module: ' . $result->get_error_message());
-                }
+                $this->module_manager->activate_module($module['slug']);
             }
         }
     }

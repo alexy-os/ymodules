@@ -1,0 +1,7 @@
+{
+    "name": "Welcome Module",
+    "version": "1.0.0",
+    "description": "A simple module with a welcome admin page",
+    "author": "YModules",
+    "namespace": "YModules\\Welcome"
+} 

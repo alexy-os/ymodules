@@ -12,6 +12,9 @@ jQuery(document).ready(function($) {
     $('.ymodules-close-modal').on('click', function() {
         const modal = $(this).closest('.fixed');
         closeModal(modal);
+        // Reset file input and file info when closing modal
+        $('#module-file').val('');
+        $('#file-info').addClass('hidden');
     });
 
     // Open upload modal
@@ -23,6 +26,14 @@ jQuery(document).ready(function($) {
     $('#module-file').on('change', function() {
         const file = this.files[0];
         if (file) {
+            // Проверка на ZIP-файл
+            if (!file.name.toLowerCase().endsWith('.zip')) {
+                alert('Please select a ZIP file');
+                $(this).val('');
+                $('#file-info').addClass('hidden');
+                return;
+            }
+            
             $('#selected-file-name').text(file.name);
             $('#file-info').removeClass('hidden');
         } else {
@@ -42,7 +53,13 @@ jQuery(document).ready(function($) {
         $(this).removeClass('border-blue-500 bg-blue-50');
         
         const file = e.originalEvent.dataTransfer.files[0];
-        if (file && file.name.endsWith('.zip')) {
+        if (file) {
+            // Проверка на ZIP-файл
+            if (!file.name.toLowerCase().endsWith('.zip')) {
+                alert('Please select a ZIP file');
+                return;
+            }
+            
             $('#module-file')[0].files = e.originalEvent.dataTransfer.files;
             $('#selected-file-name').text(file.name);
             $('#file-info').removeClass('hidden');
@@ -65,10 +82,6 @@ jQuery(document).ready(function($) {
         formData.append('nonce', ymodulesAdmin.nonce);
         formData.append('module', fileInput.files[0]);
 
-        console.log('Uploading file:', fileInput.files[0]);
-        console.log('AJAX URL:', ymodulesAdmin.ajaxUrl);
-        console.log('Nonce:', ymodulesAdmin.nonce);
-
         $.ajax({
             url: ymodulesAdmin.ajaxUrl,
             type: 'POST',
@@ -76,34 +89,72 @@ jQuery(document).ready(function($) {
             processData: false,
             contentType: false,
             beforeSend: function(xhr) {
-                console.log('Sending request...');
                 // Show loading state
                 $('#ymodules-upload-form button[type="submit"]').prop('disabled', true).html(
-                    '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
+                    '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
                     '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
                     '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>' +
                     '</svg> Uploading...'
                 );
             },
             success: function(response) {
-                console.log('Upload success:', response);
                 if (response.success) {
-                    alert(response.data.message || 'Module uploaded successfully');
-                    window.location.reload();
+                    // Показываем успешное сообщение
+                    const successHtml = `
+                        <div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div>
+                                    <span class="font-medium">Success!</span> ${response.data.message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    $('#file-info').html(successHtml);
+                    
+                    // Перезагружаем страницу через 2 секунды
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
                 } else {
-                    alert(response.data.message || 'Upload failed');
+                    // Показываем ошибку
+                    const errorHtml = `
+                        <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div>
+                                    <span class="font-medium">Error!</span> ${response.data.message || 'Upload failed'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    $('#file-info').html(errorHtml).removeClass('hidden');
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Upload error:', {
-                    status: status,
-                    error: error,
-                    response: xhr.responseText
-                });
-                alert('Upload failed. Please try again.');
+                // Показываем ошибку
+                const errorHtml = `
+                    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd"></path>
+                            </svg>
+                            <div>
+                                <span class="font-medium">Error!</span> Upload failed. Please try again.
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                $('#file-info').html(errorHtml).removeClass('hidden');
             },
             complete: function() {
-                console.log('Upload complete');
                 // Reset button state
                 $('#ymodules-upload-form button[type="submit"]').prop('disabled', false).html('Upload');
             }
@@ -135,37 +186,25 @@ jQuery(document).ready(function($) {
                 nonce: ymodulesAdmin.nonce
             },
             success: function(response) {
-                console.log('Modules response:', response);
-                
                 if (response.success) {
                     // Ensure we have an array of modules
                     const modules = Array.isArray(response.data) ? response.data : 
                                   (response.data.modules ? response.data.modules : []);
                     
-                    console.log('Processed modules:', modules);
-                    
                     modulesCache = modules;
                     lastModulesUpdate = now;
                     updateModulesList(modules);
                 } else {
-                    console.error('Failed to load modules:', response.data.message);
                     updateModulesList([]); // Show empty state
                 }
             },
             error: function(xhr, status, error) {
-                console.error('Error loading modules:', {
-                    status: status,
-                    error: error,
-                    response: xhr.responseText
-                });
                 updateModulesList([]); // Show empty state
             }
         });
     }
 
     function updateModulesList(modules) {
-        console.log('Updating modules list with:', modules);
-        
         const $grid = $('#ymodules-grid');
         $grid.empty();
 
@@ -175,8 +214,6 @@ jQuery(document).ready(function($) {
         }
 
         modules.forEach(function(module) {
-            console.log('Processing module:', module);
-            
             const card = $(`
                 <div class="bg-white overflow-hidden shadow rounded-lg">
                     <div class="p-5">
@@ -301,7 +338,7 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    alert(response.data.message || 'Module activated successfully');
+                    // Просто перезагружаем страницу
                     window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to activate module');
@@ -336,7 +373,7 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    alert(response.data.message || 'Module deactivated successfully');
+                    // Просто перезагружаем страницу
                     window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to deactivate module');
@@ -371,7 +408,7 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    alert(response.data.message || 'Module deleted successfully');
+                    // Просто перезагружаем страницу
                     window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to delete module');

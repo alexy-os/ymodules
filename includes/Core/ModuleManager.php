@@ -13,71 +13,42 @@ class ModuleManager {
     public function __construct() {
         $this->modules_dir = YMODULES_MODULES_DIR;
         
-        // Debug information
-        error_log('YModules: Modules directory path: ' . $this->modules_dir);
-        error_log('YModules: Directory exists: ' . (is_dir($this->modules_dir) ? 'yes' : 'no'));
-        error_log('YModules: Directory writable: ' . (is_writable($this->modules_dir) ? 'yes' : 'no'));
-        
         // Create modules directory if it doesn't exist
         if (!is_dir($this->modules_dir)) {
-            if (!wp_mkdir_p($this->modules_dir)) {
-                error_log('YModules: Failed to create modules directory');
-            } else {
-                error_log('YModules: Created modules directory');
-            }
+            wp_mkdir_p($this->modules_dir);
         }
     }
 
     public function install_module($file) {
         if (!extension_loaded('zip')) {
-            error_log('YModules: ZIP extension is not loaded');
+            return new \WP_Error('zip_extension', __('ZIP extension is not loaded', 'ymodules'));
         }
 
-        error_log('YModules: Starting module installation');
-        error_log('YModules: File info: ' . print_r($file, true));
-
         if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-            error_log('YModules: Invalid file upload');
             return new \WP_Error('invalid_file', __('Invalid file upload', 'ymodules'));
         }
 
         $file_info = pathinfo($file['name']);
         $extension = strtolower($file_info['extension']);
 
-        error_log('YModules: File extension: ' . $extension);
-
         // Validate file extension
         if (!in_array($extension, $this->allowed_extensions)) {
-            error_log('YModules: Invalid extension');
             return new \WP_Error('invalid_extension', __('Invalid file extension', 'ymodules'));
         }
 
         if (in_array($extension, $this->denied_extensions)) {
-            error_log('YModules: Denied extension');
             return new \WP_Error('denied_extension', __('File type not allowed', 'ymodules'));
         }
 
         // Create temporary directory for extraction
         $temp_dir = $this->modules_dir . 'temp_' . uniqid() . '/';
-        error_log('YModules: Creating temp directory: ' . $temp_dir);
-
         if (!wp_mkdir_p($temp_dir)) {
-            error_log('YModules: Failed to create temp directory');
             return new \WP_Error('temp_dir_error', __('Failed to create temporary directory', 'ymodules'));
-        }
-
-        // Ensure the temp directory is writable
-        if (!is_writable($temp_dir)) {
-            error_log('YModules: Temp directory not writable');
-            $this->cleanup_temp_dir($temp_dir);
-            return new \WP_Error('temp_dir_permission', __('Temporary directory is not writable', 'ymodules'));
         }
 
         // Extract ZIP file
         $zip = new \ZipArchive();
         $zip_result = $zip->open($file['tmp_name']);
-        
-        error_log('YModules: ZIP open result: ' . $zip_result);
         
         if ($zip_result !== true) {
             $this->cleanup_temp_dir($temp_dir);
@@ -85,56 +56,40 @@ class ModuleManager {
                 __('Failed to open ZIP file. Error code: %d', 'ymodules'),
                 $zip_result
             );
-            error_log('YModules: ' . $error_message);
             return new \WP_Error('zip_error', $error_message);
         }
 
         // Try to extract
-        error_log('YModules: Extracting to: ' . $temp_dir);
         if (!$zip->extractTo($temp_dir)) {
             $zip->close();
             $this->cleanup_temp_dir($temp_dir);
-            error_log('YModules: Failed to extract ZIP');
             return new \WP_Error('extract_error', __('Failed to extract ZIP file', 'ymodules'));
         }
 
         $zip->close();
-        error_log('YModules: ZIP extracted successfully');
 
         // Validate module structure
         $module_info = $this->validate_module_structure($temp_dir);
         if (is_wp_error($module_info)) {
-            error_log('YModules: Module validation failed: ' . $module_info->get_error_message());
             $this->cleanup_temp_dir($temp_dir);
             return $module_info;
         }
 
         // Move module to final location
         $module_dir = $this->modules_dir . $module_info['slug'] . '/';
-        error_log('YModules: Moving to final location: ' . $module_dir);
 
         if (is_dir($module_dir)) {
-            error_log('YModules: Removing existing module directory');
             $this->cleanup_temp_dir($module_dir);
-        }
-
-        // Ensure the modules directory is writable
-        if (!is_writable($this->modules_dir)) {
-            error_log('YModules: Modules directory not writable');
-            $this->cleanup_temp_dir($temp_dir);
-            return new \WP_Error('modules_dir_permission', __('Modules directory is not writable', 'ymodules'));
         }
 
         // Create the module directory
         if (!wp_mkdir_p($module_dir)) {
-            error_log('YModules: Failed to create module directory');
             $this->cleanup_temp_dir($temp_dir);
             return new \WP_Error('create_dir_error', __('Failed to create module directory', 'ymodules'));
         }
 
         // Copy files from temp to final location
         if (!$this->copy_directory($temp_dir, $module_dir)) {
-            error_log('YModules: Failed to copy module files');
             $this->cleanup_temp_dir($temp_dir);
             $this->cleanup_temp_dir($module_dir);
             return new \WP_Error('copy_error', __('Failed to copy module files', 'ymodules'));
@@ -143,7 +98,6 @@ class ModuleManager {
         // Clean up temp directory
         $this->cleanup_temp_dir($temp_dir);
 
-        error_log('YModules: Module installed successfully');
         return $module_info;
     }
 
@@ -173,7 +127,6 @@ class ModuleManager {
                 }
             } else {
                 if (!@copy($source_path, $dest_path)) {
-                    error_log('YModules: Failed to copy file: ' . $source_path . ' to ' . $dest_path);
                     return false;
                 }
             }
@@ -184,8 +137,6 @@ class ModuleManager {
     }
 
     private function validate_module_structure($dir) {
-        error_log('YModules: Validating module structure in: ' . $dir);
-        
         // First, check if we have a single directory inside
         $items = scandir($dir);
         $items = array_diff($items, ['.', '..']);
@@ -193,24 +144,17 @@ class ModuleManager {
         if (count($items) === 1 && is_dir($dir . '/' . reset($items))) {
             // We have a single directory, use it as the module root
             $dir = $dir . '/' . reset($items) . '/';
-            error_log('YModules: Found module directory: ' . $dir);
         }
 
         // Check for module.json in root
         $json_path = $dir . 'module.json';
-        error_log('YModules: Checking for module.json: ' . $json_path);
-        
         if (!file_exists($json_path)) {
-            error_log('YModules: Missing module.json');
             return new \WP_Error('missing_file', __('Missing required file: module.json', 'ymodules'));
         }
 
         // Check for module.php in src directory
         $module_php_path = $dir . 'src/module.php';
-        error_log('YModules: Checking for module.php: ' . $module_php_path);
-        
         if (!file_exists($module_php_path)) {
-            error_log('YModules: Missing module.php in src directory');
             return new \WP_Error('missing_file', __('Missing required file: src/module.php', 'ymodules'));
         }
 
@@ -219,7 +163,6 @@ class ModuleManager {
         $module_info = json_decode($json_content, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log('YModules: Invalid JSON in module.json');
             return new \WP_Error('invalid_json', __('Invalid module.json file', 'ymodules'));
         }
 
@@ -227,14 +170,12 @@ class ModuleManager {
         $required_fields = ['name', 'version', 'description', 'author'];
         foreach ($required_fields as $field) {
             if (!isset($module_info[$field])) {
-                error_log('YModules: Missing required field: ' . $field);
                 return new \WP_Error('missing_field', sprintf(__('Missing required field in module.json: %s', 'ymodules'), $field));
             }
         }
 
         // Add slug to module info
         $module_info['slug'] = sanitize_title($module_info['name']);
-        error_log('YModules: Module validation successful');
 
         return $module_info;
     }
@@ -268,23 +209,18 @@ class ModuleManager {
             }
         }
 
-        error_log('YModules: Found installed modules: ' . print_r($modules, true));
         return $modules;
     }
 
     public function activate_module($slug) {
-        error_log('YModules: Activating module: ' . $slug);
-        
         // Validate slug
         if (!$this->module_exists($slug)) {
-            error_log('YModules: Module does not exist: ' . $slug);
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
         
         // Get module information
         $module_info = $this->get_module_info($slug);
         if (is_wp_error($module_info)) {
-            error_log('YModules: Failed to get module info: ' . $module_info->get_error_message());
             return $module_info;
         }
         
@@ -292,19 +228,11 @@ class ModuleManager {
         update_option('ymodules_' . $slug . '_active', true);
         
         // Load the module's main file
-        $module_dir = $this->get_module_directory($slug);
         $module_file = $this->find_module_file($slug);
         
         if (!$module_file) {
-            error_log('YModules: Module file not found for: ' . $slug);
             return new \WP_Error('module_file_not_found', __('Module file not found', 'ymodules'));
         }
-        
-        // Log details about the file we're including
-        error_log('YModules: Attempting to include module file: ' . $module_file);
-        error_log('YModules: File exists: ' . (file_exists($module_file) ? 'Yes' : 'No'));
-        error_log('YModules: File readable: ' . (is_readable($module_file) ? 'Yes' : 'No'));
-        error_log('YModules: File size: ' . (file_exists($module_file) ? filesize($module_file) : 'N/A'));
         
         // Include the module's main file
         try {
@@ -314,66 +242,39 @@ class ModuleManager {
             $namespace = isset($module_info['namespace']) ? $module_info['namespace'] : 'YModules\\' . ucfirst($slug);
             $class = $namespace . '\\Module';
             
-            error_log('YModules: Looking for module class: ' . $class);
-            
-            // Вывести все доступные классы для отладки
-            $declared_classes = get_declared_classes();
-            error_log('YModules: Declared classes after include: ' . implode(', ', array_slice($declared_classes, -10)));
-            
             // Initialize the module
             if (class_exists($class)) {
-                error_log('YModules: Class exists: ' . $class);
-                
                 // Initialize main functionality
                 if (method_exists($class, 'init')) {
-                    error_log('YModules: Calling init() method');
                     call_user_func([$class, 'init']);
-                    error_log('YModules: Module initialized: ' . $class);
-                } else {
-                    error_log('YModules: init() method not found in class: ' . $class);
                 }
                 
                 // Initialize admin functionality
                 if (is_admin() && method_exists($class, 'admin_init')) {
-                    error_log('YModules: Calling admin_init() method');
                     call_user_func([$class, 'admin_init']);
-                    error_log('YModules: Module admin initialized: ' . $class);
-                } else if (is_admin()) {
-                    error_log('YModules: admin_init() method not found in class: ' . $class);
                 }
                 
                 // Add hook for future admin init calls
                 if (method_exists($class, 'admin_init')) {
-                    error_log('YModules: Adding admin_init hook for future calls');
                     add_action('admin_init', function() use ($class) {
-                        error_log('YModules: admin_init hook triggered for class: ' . $class);
                         if (class_exists($class)) {
                             call_user_func([$class, 'admin_init']);
-                        } else {
-                            error_log('YModules: Class no longer exists: ' . $class);
                         }
                     });
                 }
             } else {
-                error_log('YModules: Module class not found: ' . $class);
-                error_log('YModules: Available classes: ' . print_r(get_declared_classes(), true));
                 return new \WP_Error('module_class_not_found', __('Module class not found', 'ymodules'));
             }
             
             return true;
         } catch (\Exception $e) {
-            error_log('YModules: Error initializing module: ' . $e->getMessage());
-            error_log('YModules: Exception trace: ' . $e->getTraceAsString());
             return new \WP_Error('module_init_error', __('Error initializing module', 'ymodules'));
         }
     }
     
     public function deactivate_module($slug) {
-        error_log('YModules: Deactivating module: ' . $slug);
-        
         // Validate slug
         if (!$this->module_exists($slug)) {
-            error_log('YModules: Module does not exist: ' . $slug);
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
         
@@ -384,11 +285,8 @@ class ModuleManager {
     }
     
     public function delete_module($slug) {
-        error_log('YModules: Deleting module: ' . $slug);
-        
         // Validate slug
         if (!$this->module_exists($slug)) {
-            error_log('YModules: Module does not exist: ' . $slug);
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
         
@@ -399,7 +297,6 @@ class ModuleManager {
         $module_dir = $this->get_module_directory($slug);
         if (is_dir($module_dir)) {
             $this->cleanup_temp_dir($module_dir);
-            error_log('YModules: Module directory deleted: ' . $module_dir);
         }
         
         return true;
@@ -447,7 +344,7 @@ class ModuleManager {
     private function find_module_file($slug) {
         $module_dir = $this->get_module_directory($slug);
         
-        // First check src/module.php
+        // Check for src/module.php (lowercase only)
         $module_file = $module_dir . 'src/module.php';
         if (file_exists($module_file)) {
             return $module_file;
@@ -472,8 +369,6 @@ class ModuleManager {
         if (!is_dir($dir)) {
             return;
         }
-
-        error_log('YModules: Cleaning up directory: ' . $dir);
         
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
@@ -482,15 +377,11 @@ class ModuleManager {
                 $this->cleanup_temp_dir($path);
             } else {
                 if (file_exists($path)) {
-                    if (!@unlink($path)) {
-                        error_log('YModules: Failed to delete file: ' . $path);
-                    }
+                    @unlink($path);
                 }
             }
         }
 
-        if (!@rmdir($dir)) {
-            error_log('YModules: Failed to delete directory: ' . $dir);
-        }
+        @rmdir($dir);
     }
 } 

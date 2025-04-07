@@ -1,0 +1,23 @@
+# Allow access to assets
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Allow access to specific file types
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule \.(css|js|svg|png|jpg|jpeg|gif|ico|ttf|woff|woff2|eot)$ - [L]
+</IfModule>
+
+# Prevent PHP file access
+<FilesMatch "\.php$">
+  Order Allow,Deny
+  Deny from all
+</FilesMatch>
+
+# Allow access to specific PHP files
+<FilesMatch "^(index|module)\.php$">
+  Order Allow,Deny
+  Allow from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes 
