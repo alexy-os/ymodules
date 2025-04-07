@@ -107,19 +107,27 @@ class Plugin {
         }
 
         // Enqueue Tailwind from CDN
-        wp_enqueue_script(
+        /*wp_enqueue_script(
             'tailwind-cdn',
             'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
             [],
             null,
             true
+        );*/
+
+        // Enqueue Tailwind CSS
+        wp_enqueue_style(
+            'tailwind-css',
+            YMODULES_PLUGIN_URL . 'assets/css/tailwind.css',
+            [],
+            YMODULES_VERSION
         );
 
         // Enqueue admin scripts
         wp_enqueue_script(
             'ymodules-admin',
             YMODULES_PLUGIN_URL . 'assets/js/admin.js',
-            ['jquery', 'tailwind-cdn'],
+            ['jquery'], // ['jquery', 'tailwind-cdn'],
             YMODULES_VERSION,
             true
         );
