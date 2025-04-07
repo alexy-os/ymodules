@@ -1,0 +1,22 @@
+/**
+ * Admin CSS for YModules Sample Module
+ */
+
+/* Settings page styles */
+.ymodules-sample-admin .form-table th {
+    padding: 20px 10px 20px 0;
+}
+
+.ymodules-sample-admin .form-table td {
+    padding: 15px 10px;
+}
+
+/* Custom styles for the metaboxes */
+.ymodules-sample-metabox .inside {
+    padding: 15px;
+}
+
+/* Sample type specific styles */
+.post-type-sample_type .postbox {
+    margin-bottom: 20px;
+} 

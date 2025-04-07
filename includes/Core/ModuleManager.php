@@ -300,6 +300,12 @@ class ModuleManager {
             return new \WP_Error('module_file_not_found', __('Module file not found', 'ymodules'));
         }
         
+        // Log details about the file we're including
+        error_log('YModules: Attempting to include module file: ' . $module_file);
+        error_log('YModules: File exists: ' . (file_exists($module_file) ? 'Yes' : 'No'));
+        error_log('YModules: File readable: ' . (is_readable($module_file) ? 'Yes' : 'No'));
+        error_log('YModules: File size: ' . (file_exists($module_file) ? filesize($module_file) : 'N/A'));
+        
         // Include the module's main file
         try {
             include_once $module_file;
@@ -308,17 +314,56 @@ class ModuleManager {
             $namespace = isset($module_info['namespace']) ? $module_info['namespace'] : 'YModules\\' . ucfirst($slug);
             $class = $namespace . '\\Module';
             
-            // Initialize the module if class exists
-            if (class_exists($class) && method_exists($class, 'init')) {
-                call_user_func([$class, 'init']);
-                error_log('YModules: Module initialized: ' . $class);
+            error_log('YModules: Looking for module class: ' . $class);
+            
+            // Вывести все доступные классы для отладки
+            $declared_classes = get_declared_classes();
+            error_log('YModules: Declared classes after include: ' . implode(', ', array_slice($declared_classes, -10)));
+            
+            // Initialize the module
+            if (class_exists($class)) {
+                error_log('YModules: Class exists: ' . $class);
+                
+                // Initialize main functionality
+                if (method_exists($class, 'init')) {
+                    error_log('YModules: Calling init() method');
+                    call_user_func([$class, 'init']);
+                    error_log('YModules: Module initialized: ' . $class);
+                } else {
+                    error_log('YModules: init() method not found in class: ' . $class);
+                }
+                
+                // Initialize admin functionality
+                if (is_admin() && method_exists($class, 'admin_init')) {
+                    error_log('YModules: Calling admin_init() method');
+                    call_user_func([$class, 'admin_init']);
+                    error_log('YModules: Module admin initialized: ' . $class);
+                } else if (is_admin()) {
+                    error_log('YModules: admin_init() method not found in class: ' . $class);
+                }
+                
+                // Add hook for future admin init calls
+                if (method_exists($class, 'admin_init')) {
+                    error_log('YModules: Adding admin_init hook for future calls');
+                    add_action('admin_init', function() use ($class) {
+                        error_log('YModules: admin_init hook triggered for class: ' . $class);
+                        if (class_exists($class)) {
+                            call_user_func([$class, 'admin_init']);
+                        } else {
+                            error_log('YModules: Class no longer exists: ' . $class);
+                        }
+                    });
+                }
             } else {
                 error_log('YModules: Module class not found: ' . $class);
+                error_log('YModules: Available classes: ' . print_r(get_declared_classes(), true));
+                return new \WP_Error('module_class_not_found', __('Module class not found', 'ymodules'));
             }
             
             return true;
         } catch (\Exception $e) {
             error_log('YModules: Error initializing module: ' . $e->getMessage());
+            error_log('YModules: Exception trace: ' . $e->getTraceAsString());
             return new \WP_Error('module_init_error', __('Error initializing module', 'ymodules'));
         }
     }

@@ -20,6 +20,7 @@ if (!defined('ABSPATH')) {
 define('YMODULES_VERSION', '1.0.0');
 define('YMODULES_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('YMODULES_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('YMODULES_PLUGIN_FILE', __FILE__);
 define('YMODULES_MODULES_DIR', YMODULES_PLUGIN_DIR . 'modules/');
 
 // Autoloader for plugin classes

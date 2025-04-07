@@ -1,9 +1,12 @@
 {
     "name": "Sample Module",
     "version": "1.0.0",
-    "description": "A sample module demonstrating the Y Modules structure and capabilities.",
-    "author": "Your Name",
+    "description": "A sample module to demonstrate YModules functionality",
+    "author": "YModules Team",
+    "namespace": "YModules\\Sample",
+    "license": "GPL-2.0-or-later",
     "requires": {
+        "ymodules": "1.0.0",
         "php": "7.4",
         "wordpress": "5.8"
     },

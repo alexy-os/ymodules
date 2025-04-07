@@ -1,0 +1,8 @@
+# Allow access to CSS and JS files
+<Files ~ "\.(css|js)$">
+    Order allow,deny
+    Allow from all
+</Files>
+
+# Disable directory listings
+Options -Indexes 

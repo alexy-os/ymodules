@@ -88,11 +88,8 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 console.log('Upload success:', response);
                 if (response.success) {
-                    closeModal('#ymodules-upload-modal');
-                    loadModules();
-                    // Reset form
-                    $('#ymodules-upload-form')[0].reset();
-                    $('#file-info').addClass('hidden');
+                    alert(response.data.message || 'Module uploaded successfully');
+                    window.location.reload();
                 } else {
                     alert(response.data.message || 'Upload failed');
                 }
@@ -304,7 +301,8 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    loadModules(true);
+                    alert(response.data.message || 'Module activated successfully');
+                    window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to activate module');
                 }
@@ -338,7 +336,8 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    loadModules(true);
+                    alert(response.data.message || 'Module deactivated successfully');
+                    window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to deactivate module');
                 }
@@ -372,7 +371,8 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    loadModules(true);
+                    alert(response.data.message || 'Module deleted successfully');
+                    window.location.reload();
                 } else {
                     alert(response.data.message || 'Failed to delete module');
                 }

@@ -7,6 +7,7 @@ class Plugin {
     private $module_manager;
 
     private function __construct() {
+        $this->module_manager = new ModuleManager();
         $this->init_hooks();
     }
 
@@ -18,8 +19,21 @@ class Plugin {
     }
 
     private function init_hooks() {
+        register_activation_hook(YMODULES_PLUGIN_FILE, [$this, 'activate']);
+        register_deactivation_hook(YMODULES_PLUGIN_FILE, [$this, 'deactivate']);
+
+        // Load active modules first, before init hook
+        $this->load_active_modules();
+
+        add_action('init', [$this, 'load_textdomain']);
+        
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+        
+        $this->setup_ajax_handlers();
+    }
+
+    private function setup_ajax_handlers() {
         add_action('wp_ajax_ymodules_upload_module', [$this, 'handle_module_upload']);
         add_action('wp_ajax_ymodules_get_modules', [$this, 'get_modules_list']);
         add_action('wp_ajax_ymodules_activate_module', [$this, 'handle_activate_module']);
@@ -40,13 +54,14 @@ class Plugin {
     }
 
     public function enqueue_admin_assets($hook) {
+        // Only load on our plugin's main page
         if ('toplevel_page_ymodules' !== $hook) {
             return;
         }
 
         error_log('YModules: Enqueuing admin assets for hook: ' . $hook);
 
-        // Enqueue Tailwind and shadcn/ui from CDN
+        // Enqueue Tailwind
         wp_enqueue_script(
             'tailwind',
             'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
@@ -55,25 +70,11 @@ class Plugin {
             true
         );
 
-        /*wp_enqueue_style(
-            'shadcn',
-            'https://cdn.jsdelivr.net/npm/@shadcn/ui@latest/dist/shadcn-ui.min.css',
-            [],
-            null
-        );*/
-
-        // Enqueue our custom styles and scripts
-        /*wp_enqueue_style(
-            'ymodules-admin',
-            YMODULES_PLUGIN_URL . 'assets/css/admin.css',
-            [],
-            YMODULES_VERSION
-        );*/
-
+        // Enqueue our custom scripts
         wp_enqueue_script(
             'ymodules-admin',
             YMODULES_PLUGIN_URL . 'assets/js/admin.js',
-            ['jquery', 'tailwind'],
+            ['jquery'],
             YMODULES_VERSION,
             true
         );
@@ -126,11 +127,8 @@ class Plugin {
                 wp_send_json_error(['message' => __('File size exceeds maximum limit of 10MB', 'ymodules')]);
             }
 
-            error_log('YModules: Creating ModuleManager instance');
-            $module_manager = new ModuleManager();
-            
             error_log('YModules: Installing module');
-            $result = $module_manager->install_module($file);
+            $result = $this->module_manager->install_module($file);
 
             if (is_wp_error($result)) {
                 error_log('YModules: Installation error: ' . $result->get_error_message());
@@ -183,15 +181,14 @@ class Plugin {
             wp_send_json_error(['message' => __('Permission denied', 'ymodules')]);
         }
 
-        $module_manager = new ModuleManager();
-        $modules = $module_manager->get_installed_modules();
+        $modules = $this->module_manager->get_installed_modules();
 
-        wp_send_json_success(['modules' => $modules]);
+        wp_send_json_success($modules);
     }
 
     public function handle_get_modules() {
         // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules_admin_nonce')) {
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules-nonce')) {
             wp_send_json_error(['message' => __('Security check failed', 'ymodules')]);
         }
 
@@ -206,7 +203,7 @@ class Plugin {
 
     public function handle_activate_module() {
         // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules_admin_nonce')) {
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules-nonce')) {
             wp_send_json_error(['message' => __('Security check failed', 'ymodules')]);
         }
 
@@ -232,7 +229,7 @@ class Plugin {
 
     public function handle_deactivate_module() {
         // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules_admin_nonce')) {
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules-nonce')) {
             wp_send_json_error(['message' => __('Security check failed', 'ymodules')]);
         }
 
@@ -258,7 +255,7 @@ class Plugin {
 
     public function handle_delete_module() {
         // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules_admin_nonce')) {
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'ymodules-nonce')) {
             wp_send_json_error(['message' => __('Security check failed', 'ymodules')]);
         }
 
@@ -280,5 +277,33 @@ class Plugin {
         }
 
         wp_send_json_success(['message' => __('Module deleted successfully', 'ymodules')]);
+    }
+
+    public function load_textdomain() {
+        load_plugin_textdomain('ymodules', false, dirname(plugin_basename(YMODULES_PLUGIN_FILE)) . '/languages');
+    }
+
+    public function activate() {
+        // Plugin activation code here
+    }
+
+    public function deactivate() {
+        // Plugin deactivation code here
+    }
+
+    public function load_active_modules() {
+        error_log('YModules: Loading active modules');
+        $modules = $this->module_manager->get_installed_modules();
+        
+        foreach ($modules as $module) {
+            if (isset($module['active']) && $module['active']) {
+                error_log('YModules: Loading active module: ' . $module['slug']);
+                $result = $this->module_manager->activate_module($module['slug']);
+                
+                if (is_wp_error($result)) {
+                    error_log('YModules: Error loading module: ' . $result->get_error_message());
+                }
+            }
+        }
     }
 } 
