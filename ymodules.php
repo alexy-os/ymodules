@@ -38,8 +38,27 @@ require_once YMODULES_PLUGIN_DIR . 'includes/Core/Plugin.php';
 
 // Initialize plugin
 function ymodules_init() {
+    error_log('YModules Debug: Plugin initialization started');
+    
+    // Check if we're in admin and at what point
+    if (is_admin()) {
+        error_log('YModules Debug: Initializing in admin context');
+        error_log('YModules Debug: Current action: ' . (current_action() ?: 'None'));
+        error_log('YModules Debug: admin_menu did_action: ' . did_action('admin_menu'));
+    }
+    
     return \YModules\Core\Plugin::get_instance();
 }
 
 // Start the plugin
 ymodules_init();
+
+// For diagnostic purposes, check admin_menu hook
+add_action('admin_menu', function() {
+    error_log('YModules Debug: admin_menu action fired');
+}, 1);
+
+// Check admin_init hook
+add_action('admin_init', function() {
+    error_log('YModules Debug: admin_init action fired');
+}, 1);

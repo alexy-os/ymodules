@@ -1,110 +1,110 @@
 # Y Modules
 
-## Концепция "Три Кита"
+## The "Three Whales" Concept
 
-Y Modules — это новая парадигма разработки для веб-платформ, основанная на трех фундаментальных принципах:
+Y Modules is a new paradigm for web platform development, founded on three fundamental principles:
 
-1. **Ни одной лишней строчки кода** — исключение избыточных плагинов, библиотек и кода
-2. **Ни одного лишнего запроса** — оптимизация всех взаимодействий с БД, серверами, API и браузером
-3. **Максимальная скорость** — достижение идеальных 100/100/100/100 в PageSpeed и молниеносного отклика UI
+1. **Not a single line of superfluous code** — elimination of redundant plugins, libraries, and code
+2. **Not a single unnecessary request** — optimisation of all interactions with databases, servers, APIs, and browsers
+3. **Maximum achievable speed** — attaining perfect 100/100/100/100 PageSpeed scores and lightning-fast UI response
 
-В мире, где большинство CMS и фреймворков обрастают избыточным кодом и неоптимальными решениями, Y Modules предлагает радикально иной подход: возвращение к сути веб-технологий через строгую модульность, минимализм и высокую производительность.
+In a world where most CMSs and frameworks accumulate excessive code and suboptimal solutions, Y Modules offers a radically different approach: returning to the essence of web technologies through strict modularity, minimalism, and high performance.
 
-## Почему именно "Y"?
+## Why "Y"?
 
-Буква "Y" символизирует:
+The letter "Y" symbolises:
 
-1. **Y-образное разветвление решений** — как в математической Y-комбинаторе, наш подход позволяет создавать рекурсивные, самооптимизирующиеся системы
-2. **"Why?"** — постоянное критическое переосмысление необходимости каждого компонента
-3. **"Yes"** — положительный результат для разработчиков и пользователей
-4. **Путь (Way)** — новое направление в веб-разработке
+1. **Y-shaped branching of solutions** — like in the mathematical Y combinator, our approach enables the creation of recursive, self-optimising systems
+2. **"Why?"** — continuous critical reassessment of the necessity of each component
+3. **"Yes"** — positive outcomes for both developers and users
+4. **Way** — a new direction in web development
 
-Подобно знаменитому Y Combinator, изменившему парадигму стартапов, Y Modules стремится трансформировать подход к веб-разработке, делая её более рациональной, производительной и масштабируемой.
+Similar to the renowned Y Combinator that transformed the startup paradigm, Y Modules aims to revolutionise the approach to web development, making it more rational, performant, and scalable.
 
-## Текущий фокус: WordPress
+## Current Focus: WordPress
 
-Начинаем с самой распространенной, но и самой критикуемой CMS в мире — WordPress. Многие считают её устаревшей, небезопасной и медленной. Мы докажем, что это не так.
+We begin with the most widespread, yet most criticised CMS in the world — WordPress. Many consider it outdated, insecure, and slow. We intend to prove otherwise.
 
-### Модули против плагинов
+### Modules versus Plugins
 
-**Вместо сотен плагинов — один плагин с модулями:**
+**Instead of hundreds of plugins — one plugin with modules:**
 
 ```
 WordPress
-├── WooCommerce (если нужен)
+├── WooCommerce (if needed)
 └── Y Modules
-    ├── Модуль Classic Editor
-    ├── Модуль Cyr to Lat
-    ├── Модуль SEO
-    └── ...другие модули по необходимости
+    ├── Classic Editor Module
+    ├── Cyr to Lat Module
+    ├── SEO Module
+    └── ...other modules as required
 ```
 
-### Преимущества модульного подхода:
+### Advantages of the modular approach:
 
-- **Строгая типизация** — все компоненты используют строгую типизацию для предотвращения ошибок
-- **Следование принципам** — SOLID, PSR, DRY, KISS и другие лучшие практики
-- **Изоляция от рантайма** — модули максимально отделены от основного рантайма WordPress
-- **Отсутствие фронтенд-зависимостей** — идеал: статический фронтенд из кэша без лишних запросов
-- **Стандартизация и валидация** — автоматическая проверка всех модулей на соответствие стандартам
+- **Strict typing** — all components utilise strict typing to prevent errors
+- **Adherence to principles** — SOLID, PSR, DRY, KISS, and other best practices
+- **Runtime isolation** — modules are maximally separated from WordPress core runtime
+- **Absence of frontend dependencies** — ideal: static frontend from cache without unnecessary requests
+- **Standardisation and validation** — automatic verification of all modules for compliance with standards
 
-## Технический стек
+## Technical Stack
 
-### Текущие технологии:
-- **PHP (OOP)** — основа модулей для WordPress с акцентом на ООП и строгую типизацию
-- **TypeScript** — типизированная разработка клиентской части
-- **WebAssembly + Go** — для высокопроизводительных компонентов
+### Current technologies:
+- **PHP (OOP)** — foundation for WordPress modules with an emphasis on OOP and strict typing
+- **TypeScript** — typed client-side development
+- **WebAssembly + Go** — for high-performance components
 
-### Планируемые технологии:
-- **Rust** — для критически важных по производительности модулей
-- **Zig** — экспериментальные высокопроизводительные компоненты
-- **Python** — для модулей, связанных с ML и анализом данных
+### Planned technologies:
+- **Rust** — for performance-critical modules
+- **Zig** — experimental high-performance components
+- **Python** — for modules related to ML and data analysis
 
-## Перспективные применения WebAssembly в WordPress
+## Promising WebAssembly Applications in WordPress
 
-1. **Предкомпиляция шаблонов в WebAssembly** — ускорение рендеринга за счет компиляции
-2. **Клиентский рендеринг без обращения к серверу** — снижение нагрузки на бэкенд
-3. **Оптимизация медиа в реальном времени** — обработка изображений и видео на клиенте
-4. **Интеллектуальная предзагрузка контента** — упреждающая загрузка по паттернам взаимодействия
-5. **Изолированные UI-компоненты** — независимые от WordPress блоки интерфейса
-6. **Инкрементальная загрузка интерфейса** — только то, что нужно пользователю прямо сейчас
-7. **Балансировка между динамическим и статическим контентом** — умное кэширование
-8. **Инвалидация кэша по изменениям данных** — точечное обновление только изменившихся элементов
-9. **Приоритизация видимого контента** — оптимизация для контента "above the fold"
-10. **Передача тяжелых вычислений на клиент** — освобождение серверных ресурсов
-11. **Клиентская система управления состоянием** — Go + WASM для эффективного управления данными
-12. **Обновление только изменившихся частей DOM** — виртуальный DOM на WASM
+1. **Pre-compilation of templates to WebAssembly** — rendering acceleration through compilation
+2. **Client-side rendering without server requests** — reducing backend load
+3. **Real-time media optimisation** — processing images and videos on the client
+4. **Intelligent content preloading** — anticipatory loading based on interaction patterns
+5. **Isolated UI components** — interface blocks independent of WordPress
+6. **Incremental interface loading** — only what the user needs at the moment
+7. **Balancing between dynamic and static content** — intelligent caching
+8. **Cache invalidation based on data changes** — precise updating of only changed elements
+9. **Prioritisation of visible content** — optimisation for "above the fold" content
+10. **Offloading heavy calculations to the client** — freeing server resources
+11. **Client-side state management system** — Go + WASM for efficient data management
+12. **Updating only changed parts of the DOM** — virtual DOM on WASM
 
-## Развитие платформы
+## Platform Development
 
-1. **WordPress** — начальная точка, где потребность в оптимизации наиболее критична
-2. **Кастомные решения** — планируется поддержка Slim, Flight и собственных разработок
-3. **Интеграции с популярными платформами** — Symfony, Laravel, Bitrix, ModX, Magento и др.
+1. **WordPress** — starting point where the need for optimisation is most critical
+2. **Custom solutions** — planned support for Slim, Flight, and proprietary developments
+3. **Integration with popular platforms** — Symfony, Laravel, Bitrix, ModX, Magento, and others
 
-## Для разработчиков
+## For Developers
 
-### Что нужно знать сейчас:
+### What you need to know now:
 - WordPress API
-- ООП PHP с акцентом на строгую типизацию
-- Современный JavaScript/TypeScript
-- Основы WebAssembly
-- Go для высокопроизводительных компонентов
+- OOP PHP with an emphasis on strict typing
+- Modern JavaScript/TypeScript
+- WebAssembly fundamentals
+- Go for high-performance components
 
-### Как внести вклад:
-1. Изучите документацию и стандарты проекта
-2. Выберите модуль для разработки или улучшения
-3. Следуйте принципам "Трех Китов" при разработке
-4. Пройдите автоматическую валидацию перед отправкой PR
+### How to contribute:
+1. Study the project documentation and standards
+2. Select a module for development or improvement
+3. Follow the "Three Whales" principles during development
+4. Pass automatic validation before submitting a PR
 
-## Будущее проекта
+## Project Future
 
-Наша цель — создать открытую экосистему модулей, которая изменит представление о возможностях WordPress и других CMS. После накопления критической массы реальных кейсов планируется расширение сообщества разработчиков и кураторов модулей.
+Our goal is to create an open ecosystem of modules that will change perceptions about the capabilities of WordPress and other CMSs. After accumulating a critical mass of real-world cases, we plan to expand the community of module developers and curators.
 
-С Y Modules вы сможете создавать сайты, которые:
-- Загружаются мгновенно (PageSpeed 100/100/100/100)
-- Работают безопасно и стабильно
-- Не требуют бесконечных обновлений плагинов
-- Легко масштабируются и модифицируются
+With Y Modules, you can create websites that:
+- Load instantly (PageSpeed 100/100/100/100)
+- Operate securely and stably
+- Do not require endless plugin updates
+- Scale and modify effortlessly
 
 ---
 
-**Y Modules — это не просто оптимизация, это новая философия веб-разработки.**
+**Y Modules is not merely optimisation; it's a new philosophy of web development.** 

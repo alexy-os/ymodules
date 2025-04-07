@@ -1,12 +1,25 @@
 /**
  * YModules Admin Interface
  * 
- * Manages the admin interface for YModules following the Y Modules Manifesto principles:
+ * Manages the admin interface for YModules including:
+ * - Module installation (drag & drop, file selection)
+ * - Module management (activation, deactivation, deletion)
+ * - Modal dialogs for module operations
+ * 
+ * Following the Y Modules Manifesto principles:
  * - Zero Redundancy: Optimized code with minimal duplication
- * - Minimal Requests: Using pre-loaded data instead of AJAX
- * - Maximal Performance: Efficient DOM operations
+ * - Minimal Requests: Direct PHP rendering with minimal AJAX
+ * - Maximal Performance: Efficient DOM operations and event handling
  */
 jQuery(document).ready(function($) {
+    // Guard to prevent multiple initialization
+    if (window._ymodules_initialized) {
+        return;
+    }
+    
+    // Mark as initialized
+    window._ymodules_initialized = true;
+    
     /**
      * Modal management
      */
@@ -206,81 +219,6 @@ jQuery(document).ready(function($) {
             }
         });
     });
-
-    /**
-     * Module list rendering from preloaded data
-     */
-    const $modulesGrid = $('#ymodules-grid');
-    
-    if ($modulesGrid.length > 0 && window.ymodulesPreloadedData) {
-        const modules = window.ymodulesPreloadedData.modules || [];
-        renderModules(modules);
-    }
-    
-    function renderModules(modules) {
-        if (!$modulesGrid || $modulesGrid.length === 0) {
-            return;
-        }
-
-        $modulesGrid.empty();
-
-        if (!Array.isArray(modules) || modules.length === 0) {
-            $modulesGrid.html('<div class="text-center py-8 text-gray-500">No modules installed</div>');
-            return;
-        }
-
-        modules.forEach(function(module) {
-            const card = $(`
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0">
-                                <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <h3 class="text-sm font-medium text-gray-900 truncate">${module.name || 'Unnamed Module'}</h3>
-                                <p class="text-sm text-gray-500">v${module.version || '1.0.0'}</p>
-                            </div>
-                            <div class="ml-4 flex-shrink-0">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    module.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                }">
-                                    ${module.active ? 'Active' : 'Inactive'}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <p class="text-sm text-gray-500 line-clamp-2">${module.description || 'No description available'}</p>
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 px-5 py-3">
-                        <div class="text-sm flex justify-between">
-                            <button type="button" class="font-medium text-indigo-600 hover:text-indigo-500 view-module-details" data-module='${JSON.stringify(module)}'>
-                                View details
-                            </button>
-                            <div class="space-x-2">
-                                ${module.active ? 
-                                    `<button type="button" class="font-medium text-gray-600 hover:text-gray-800 deactivate-module" data-slug="${module.slug}">
-                                        Deactivate
-                                    </button>` : 
-                                    `<button type="button" class="font-medium text-green-600 hover:text-green-800 activate-module" data-slug="${module.slug}">
-                                        Activate
-                                    </button>`
-                                }
-                                <button type="button" class="font-medium text-red-600 hover:text-red-800 delete-module" data-slug="${module.slug}">
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `);
-
-            $modulesGrid.append(card);
-        });
-    }
 
     /**
      * Module details view

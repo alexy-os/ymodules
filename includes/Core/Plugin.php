@@ -21,6 +21,9 @@ class Plugin {
     private function __construct() {
         $this->module_manager = new ModuleManager();
         $this->init_hooks();
+        
+        // Ensure welcome module is activated when plugin loads
+        add_action('admin_init', [$this, 'ensure_welcome_module_active'], 5);
     }
 
     /**
@@ -61,18 +64,8 @@ class Plugin {
      * Follows Y Modules Manifesto principle of Minimal Requests
      */
     private function optimize_micro_requests() {
-        // Загружаем информацию о модулях напрямую при рендеринге страницы
-        add_action('admin_head', function() {
-            if (isset($_GET['page']) && $_GET['page'] === 'ymodules') {
-                $modules = $this->module_manager->get_installed_modules();
-                echo '<script>
-                    // Предзагруженные данные модулей
-                    window.ymodulesPreloadedData = ' . json_encode([
-                        'modules' => $modules
-                    ]) . ';
-                </script>';
-            }
-        });
+        // We're using direct PHP rendering instead of AJAX requests
+        // This is intentionally left minimal to avoid interference with WordPress core
     }
 
     /**
@@ -144,10 +137,23 @@ class Plugin {
      * Renders the admin page
      */
     public function render_admin_page() {
+        // Get modules directly using PHP
+        $modules = $this->module_manager->get_installed_modules();
+        
+        // Make modules data available to the template
+        $ymodules_data = [
+            'modules' => $modules,
+            'count' => count($modules)
+        ];
+        
         // Include admin template with proper path validation
         $template_path = YMODULES_PLUGIN_DIR . 'templates/admin-page.php';
         if (file_exists($template_path)) {
             include $template_path;
+        } else {
+            echo '<div class="wrap"><p class="notice notice-error">';
+            echo __('Error: Admin template not found.', 'ymodules');
+            echo '</p></div>';
         }
     }
 
@@ -433,15 +439,290 @@ class Plugin {
     }
 
     /**
-     * Loads and initializes active modules
+     * Loads all active modules on plugin initialization
      */
     public function load_active_modules() {
-        $modules = $this->module_manager->get_installed_modules();
+        $active_modules = get_option('ymodules_active_modules', []);
         
-        foreach ($modules as $module) {
-            if (isset($module['active']) && $module['active']) {
-                $this->module_manager->activate_module($module['slug']);
+        // Debug information
+        error_log('YModules Debug: Active modules - ' . json_encode($active_modules));
+        
+        if (empty($active_modules)) {
+            error_log('YModules Debug: No active modules found');
+            
+            // Try to activate welcome module automatically for testing
+            if ($this->module_manager->module_exists('welcome-module')) {
+                error_log('YModules Debug: Welcome module exists, attempting to activate it');
+                $result = $this->module_manager->activate_module('welcome-module');
+                if (is_wp_error($result)) {
+                    error_log('YModules Debug: Failed to activate welcome module: ' . $result->get_error_message());
+                } else {
+                    error_log('YModules Debug: Welcome module activated successfully');
+                    $active_modules = get_option('ymodules_active_modules', []);
+                }
+            } else {
+                error_log('YModules Debug: Welcome module does not exist');
             }
+            
+            if (empty($active_modules)) {
+                return;
+            }
+        }
+        
+        // Get information about all installed modules
+        $all_modules = $this->module_manager->get_installed_modules();
+        $installed_slugs = array_column($all_modules, 'slug');
+        
+        // Initialize each active module that is actually installed
+        foreach ($active_modules as $slug) {
+            // Skip if module is not installed
+            if (!in_array($slug, $installed_slugs)) {
+                continue;
+            }
+            
+            try {
+                // Find and include the module file
+                $module_file = $this->module_manager->find_module_file($slug);
+                
+                if ($module_file && is_readable($module_file)) {
+                    include_once $module_file;
+                    
+                    // Get module info to determine namespace
+                    $module_info = $this->module_manager->get_module_info($slug);
+                    
+                    if (!is_wp_error($module_info)) {
+                        // Determine class name based on module info
+                        $namespace = isset($module_info['namespace']) ? $module_info['namespace'] : 'YModules\\' . ucfirst($slug);
+                        $class = $namespace . '\\Module';
+                        
+                        // Check if class exists
+                        if (class_exists($class)) {
+                            // Initialize module
+                            if (method_exists($class, 'init')) {
+                                call_user_func([$class, 'init']);
+                                
+                                // Register admin_init hook if method exists
+                                if (method_exists($class, 'admin_init')) {
+                                    error_log('YModules Debug: Adding admin_init hook for class ' . $class);
+                                    
+                                    // Check if we're in admin
+                                    if (is_admin()) {
+                                        error_log('YModules Debug: We are in admin area, calling admin_init directly');
+                                        // Call admin_init directly if we're already in admin
+                                        call_user_func([$class, 'admin_init']);
+                                    }
+                                    
+                                    // Still add the hook for future requests
+                                    add_action('admin_init', function() use ($class) {
+                                        call_user_func([$class, 'admin_init']);
+                                    });
+                                    
+                                    // Check if admin_menu hook is still available
+                                    if (!did_action('admin_menu') && has_action('admin_menu')) {
+                                        error_log('YModules Debug: admin_menu hook is available');
+                                    } else {
+                                        error_log('YModules Debug: WARNING - admin_menu hook already fired or not available!');
+                                    }
+                                }
+                                
+                                // Log successful module loading
+                                if (defined('WP_DEBUG') && WP_DEBUG) {
+                                    error_log(sprintf('YModules: Successfully loaded module %s', $slug));
+                                }
+                            } else {
+                                error_log(sprintf('YModules: Module %s missing init method', $slug));
+                            }
+                        } else {
+                            error_log(sprintf('YModules: Class %s not found for module %s', $class, $slug));
+                        }
+                    } else {
+                        error_log(sprintf('YModules: Error getting module info for %s: %s', 
+                            $slug, $module_info->get_error_message()));
+                    }
+                } else {
+                    error_log(sprintf('YModules: Module file not found or not readable for %s', $slug));
+                }
+            } catch (\Exception $e) {
+                // Log any exceptions during module loading
+                error_log(sprintf('YModules: Exception loading module %s: %s', $slug, $e->getMessage()));
+            }
+        }
+    }
+
+    /**
+     * Imports modules from a directory
+     * 
+     * Scans the specified directory for module folders and imports them
+     * This allows for quickly adding multiple modules without going through the ZIP upload process
+     * 
+     * @param string $source_dir Directory to scan for modules
+     * @param bool $activate Whether to activate imported modules
+     * @return array Results of the import process
+     */
+    public function import_modules_from_directory($source_dir, $activate = false) {
+        $results = [
+            'imported' => [],
+            'skipped' => [],
+            'errors' => []
+        ];
+        
+        // Ensure the source directory exists and is readable
+        if (!is_dir($source_dir) || !is_readable($source_dir)) {
+            $results['errors'][] = sprintf(__('Source directory %s does not exist or is not readable', 'ymodules'), $source_dir);
+            return $results;
+        }
+        
+        // Scan the directory for potential modules
+        $items = array_diff(scandir($source_dir), ['.', '..']);
+        
+        foreach ($items as $item) {
+            $item_path = $source_dir . '/' . $item;
+            
+            // Skip non-directories
+            if (!is_dir($item_path)) {
+                continue;
+            }
+            
+            // Check if this looks like a module
+            $module_json = $item_path . '/module.json';
+            
+            if (!file_exists($module_json)) {
+                $results['skipped'][] = [
+                    'path' => $item_path,
+                    'reason' => __('No module.json found', 'ymodules')
+                ];
+                continue;
+            }
+            
+            // Parse module info
+            $json_content = file_get_contents($module_json);
+            $module_info = json_decode($json_content, true);
+            
+            if (!$module_info || json_last_error() !== JSON_ERROR_NONE) {
+                $results['skipped'][] = [
+                    'path' => $item_path,
+                    'reason' => __('Invalid module.json file', 'ymodules')
+                ];
+                continue;
+            }
+            
+            // Determine module slug
+            $slug = isset($module_info['slug']) 
+                ? sanitize_title($module_info['slug']) 
+                : sanitize_title($module_info['name'] ?? $item);
+            
+            // Skip existing modules by default
+            if (is_dir(YMODULES_MODULES_DIR . $slug) && !isset($results['imported'][$slug])) {
+                $results['skipped'][] = [
+                    'path' => $item_path,
+                    'slug' => $slug,
+                    'reason' => __('Module already exists', 'ymodules')
+                ];
+                continue;
+            }
+            
+            // Copy module to the modules directory
+            $dest_dir = YMODULES_MODULES_DIR . $slug . '/';
+            
+            // Create the destination directory
+            if (!wp_mkdir_p($dest_dir)) {
+                $results['errors'][] = [
+                    'path' => $item_path,
+                    'slug' => $slug,
+                    'reason' => __('Failed to create module directory', 'ymodules')
+                ];
+                continue;
+            }
+            
+            // Copy module files
+            if (!$this->module_manager->copy_directory($item_path, $dest_dir)) {
+                $results['errors'][] = [
+                    'path' => $item_path,
+                    'slug' => $slug,
+                    'reason' => __('Failed to copy module files', 'ymodules')
+                ];
+                continue;
+            }
+            
+            // Successfully imported
+            $results['imported'][] = [
+                'path' => $item_path,
+                'slug' => $slug,
+                'info' => $module_info
+            ];
+            
+            // Activate the module if requested
+            if ($activate) {
+                $result = $this->module_manager->activate_module($slug);
+                
+                if (is_wp_error($result)) {
+                    $results['errors'][] = [
+                        'slug' => $slug,
+                        'reason' => sprintf(
+                            __('Module imported but activation failed: %s', 'ymodules'),
+                            $result->get_error_message()
+                        )
+                    ];
+                }
+            }
+        }
+        
+        return $results;
+    }
+
+    /**
+     * Ensures that the welcome module is active
+     * For diagnostic purposes
+     */
+    public function ensure_welcome_module_active() {
+        error_log('YModules Debug: Checking welcome module status');
+        
+        $active_modules = get_option('ymodules_active_modules', []);
+        
+        if (!in_array('welcome-module', $active_modules)) {
+            error_log('YModules Debug: Welcome module is not active, attempting to activate');
+            
+            if ($this->module_manager->module_exists('welcome-module')) {
+                $result = $this->module_manager->activate_module('welcome-module');
+                
+                if (is_wp_error($result)) {
+                    error_log('YModules Debug: Failed to activate welcome module: ' . $result->get_error_message());
+                } else {
+                    error_log('YModules Debug: Welcome module forcibly activated');
+                    
+                    // Force admin_menu to run again if we're after that point
+                    if (did_action('admin_menu')) {
+                        error_log('YModules Debug: admin_menu already ran, attempting to run setup_admin directly');
+                        
+                        // Try to load the module file and call setup_admin directly
+                        $module_file = $this->module_manager->find_module_file('welcome-module');
+                        if ($module_file && is_readable($module_file)) {
+                            include_once $module_file;
+                            $module_info = $this->module_manager->get_module_info('welcome-module');
+                            
+                            if (!is_wp_error($module_info)) {
+                                $namespace = isset($module_info['namespace']) ? $module_info['namespace'] : 'YModules\\Welcome';
+                                $class = $namespace . '\\Module';
+                                
+                                if (class_exists($class)) {
+                                    $instance = call_user_func([$class, 'admin_init']);
+                                    error_log('YModules Debug: Manual admin_init called for welcome module: ' . (is_object($instance) ? 'success' : 'failed'));
+                                    
+                                    // Force add_admin_menu to run
+                                    if (method_exists($instance, 'add_admin_menu')) {
+                                        $instance->add_admin_menu();
+                                        error_log('YModules Debug: Forced add_admin_menu for welcome module');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                error_log('YModules Debug: Welcome module does not exist');
+            }
+        } else {
+            error_log('YModules Debug: Welcome module is already active');
         }
     }
 } 

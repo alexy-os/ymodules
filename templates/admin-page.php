@@ -2,6 +2,9 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+// Ensure modules data is available
+$modules = isset($ymodules_data['modules']) ? $ymodules_data['modules'] : [];
 ?>
 <div class="wrap ymodules-admin">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -58,7 +61,68 @@ if (!defined('ABSPATH')) {
 
         <!-- Modules Grid -->
         <div id="ymodules-grid" class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <!-- Modules will be loaded here dynamically -->
+            <?php if (empty($modules)): ?>
+                <div class="text-center py-8 text-gray-500 col-span-full">
+                    <?php _e('No modules installed', 'ymodules'); ?>
+                </div>
+            <?php else: ?>
+                <?php foreach ($modules as $module): ?>
+                    <div class="bg-white overflow-hidden shadow rounded-lg">
+                        <div class="p-5">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <div class="ml-5 w-0 flex-1">
+                                    <h3 class="text-sm font-medium text-gray-900 truncate">
+                                        <?php echo esc_html($module['name'] ?? 'Unnamed Module'); ?>
+                                    </h3>
+                                    <p class="text-sm text-gray-500">
+                                        v<?php echo esc_html($module['version'] ?? '1.0.0'); ?>
+                                    </p>
+                                </div>
+                                <div class="ml-4 flex-shrink-0">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $module['active'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'; ?>">
+                                        <?php echo $module['active'] ? __('Active', 'ymodules') : __('Inactive', 'ymodules'); ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-sm text-gray-500 line-clamp-2">
+                                    <?php echo esc_html($module['description'] ?? __('No description available', 'ymodules')); ?>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-5 py-3">
+                            <div class="text-sm flex justify-between">
+                                <button type="button" class="font-medium text-indigo-600 hover:text-indigo-500 view-module-details" 
+                                        data-module='<?php echo json_encode($module); ?>'>
+                                    <?php _e('View details', 'ymodules'); ?>
+                                </button>
+                                <div class="space-x-2">
+                                    <?php if ($module['active']): ?>
+                                        <button type="button" class="font-medium text-gray-600 hover:text-gray-800 deactivate-module" 
+                                                data-slug="<?php echo esc_attr($module['slug']); ?>">
+                                            <?php _e('Deactivate', 'ymodules'); ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="font-medium text-green-600 hover:text-green-800 activate-module" 
+                                                data-slug="<?php echo esc_attr($module['slug']); ?>">
+                                            <?php _e('Activate', 'ymodules'); ?>
+                                        </button>
+                                    <?php endif; ?>
+                                    <button type="button" class="font-medium text-red-600 hover:text-red-800 delete-module" 
+                                            data-slug="<?php echo esc_attr($module['slug']); ?>">
+                                        <?php _e('Delete', 'ymodules'); ?>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </div>
 
         <!-- Module Details Modal -->

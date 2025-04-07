@@ -134,7 +134,7 @@ class ModuleManager {
      * @param string $destination Destination directory path
      * @return bool True on success, false on failure
      */
-    private function copy_directory($source, $destination) {
+    public function copy_directory($source, $destination) {
         if (!is_dir($source)) {
             return false;
         }
@@ -227,42 +227,41 @@ class ModuleManager {
     }
 
     /**
-     * Gets list of installed modules
+     * Gets list of installed modules using direct directory reading
      * 
      * @return array Array of module information
      */
     public function get_installed_modules() {
         $modules = [];
-        $dirs = glob($this->modules_dir . '*', GLOB_ONLYDIR);
+        
+        // Get all directories in the modules folder, excluding special entries
+        $module_dirs = array_filter(
+            glob($this->modules_dir . '*', GLOB_ONLYDIR),
+            function($dir) {
+                $basename = basename($dir);
+                // Skip temporary directories and hidden directories
+                return strpos($basename, 'temp_') !== 0 && strpos($basename, '.') !== 0;
+            }
+        );
 
-        if (!$dirs) {
+        if (empty($module_dirs)) {
             return $modules;
         }
 
-        foreach ($dirs as $dir) {
-            // First check in root
-            $module_file = $dir . '/module.json';
+        foreach ($module_dirs as $dir) {
+            $slug = basename($dir);
+            $info = $this->get_module_info($slug);
             
-            // If not found in root, check for a single subdirectory
-            if (!file_exists($module_file)) {
-                $items = scandir($dir);
-                $items = array_diff($items, ['.', '..']);
-                
-                if (count($items) === 1 && is_dir($dir . '/' . reset($items))) {
-                    $subdir = reset($items);
-                    $module_file = $dir . '/' . $subdir . '/module.json';
-                }
-            }
-
-            if (file_exists($module_file)) {
-                $json_content = file_get_contents($module_file);
-                $module_info = json_decode($json_content, true);
-                
-                if ($module_info) {
-                    $module_info['slug'] = basename($dir);
-                    $module_info['active'] = get_option('ymodules_' . $module_info['slug'] . '_active', false);
-                    $modules[] = $module_info;
-                }
+            if (!is_wp_error($info)) {
+                // Add active status to module info
+                $active_modules = get_option('ymodules_active_modules', []);
+                $info['active'] = in_array($slug, $active_modules);
+                $info['slug'] = $slug;
+                $modules[] = $info;
+            } else {
+                // Log the error but continue processing other modules
+                error_log(sprintf('YModules: Failed to load module info for %s: %s', 
+                    $slug, $info->get_error_message()));
             }
         }
 
@@ -270,7 +269,7 @@ class ModuleManager {
     }
 
     /**
-     * Activates a module
+     * Activates a module by its slug
      * 
      * @param string $slug Module slug
      * @return bool|WP_Error True on success, WP_Error on failure
@@ -287,51 +286,77 @@ class ModuleManager {
             return $module_info;
         }
         
-        // Set module as active in options
-        update_option('ymodules_' . $slug . '_active', true);
+        // Get active modules list
+        $active_modules = get_option('ymodules_active_modules', []);
         
-        // Load module file
+        // Check if module is already active
+        if (in_array($slug, $active_modules)) {
+            return true; // Already active
+        }
+        
+        // Try to load the module file
         $module_file = $this->find_module_file($slug);
-        
         if (!$module_file) {
             return new \WP_Error('module_file_not_found', __('Module file not found', 'ymodules'));
         }
         
-        // Include and initialize module
+        // Include the module file to verify it loads without errors
         try {
+            // Check file properties before including
+            if (!is_readable($module_file)) {
+                return new \WP_Error('file_not_readable', __('Module file is not readable', 'ymodules'));
+            }
+            
+            if (filesize($module_file) <= 0) {
+                return new \WP_Error('empty_file', __('Module file is empty', 'ymodules'));
+            }
+            
+            // Include the module file
             include_once $module_file;
             
-            // Determine namespace and class name
+            // Verify the module class exists
             $namespace = isset($module_info['namespace']) ? $module_info['namespace'] : 'YModules\\' . ucfirst($slug);
             $class = $namespace . '\\Module';
             
-            // Initialize the module
-            if (class_exists($class)) {
-                // Initialize main functionality
-                if (method_exists($class, 'init')) {
-                    call_user_func([$class, 'init']);
-                }
-                
-                // Initialize admin functionality if in admin
-                if (is_admin() && method_exists($class, 'admin_init')) {
+            error_log('YModules Debug: Trying to load module class: ' . $class);
+            
+            if (!class_exists($class)) {
+                error_log('YModules Debug: Module class not found: ' . $class);
+                // Dump all declared classes to see what's available
+                error_log('YModules Debug: Declared classes: ' . implode(', ', get_declared_classes()));
+                return new \WP_Error('class_not_found', sprintf(__('Module class %s not found', 'ymodules'), $class));
+            }
+            
+            // Verify required methods exist
+            if (!method_exists($class, 'init')) {
+                error_log('YModules Debug: init method not found in class ' . $class);
+                return new \WP_Error('method_not_found', sprintf(__('Required method %s::init() not found', 'ymodules'), $class));
+            }
+            
+            // Add module to active list
+            $active_modules[] = $slug;
+            update_option('ymodules_active_modules', $active_modules);
+            
+            // Call init method to initialize the module
+            error_log('YModules Debug: Calling init method on class ' . $class);
+            $result = call_user_func([$class, 'init']);
+            error_log('YModules Debug: Init method result: ' . (is_object($result) ? get_class($result) : gettype($result)));
+            
+            // If admin_init method exists, add a hook to call it on admin_init
+            if (method_exists($class, 'admin_init')) {
+                error_log('YModules Debug: Registering admin_init hook for class ' . $class);
+                add_action('admin_init', function() use ($class) {
+                    error_log('YModules Debug: Executing admin_init for class ' . $class);
                     call_user_func([$class, 'admin_init']);
-                }
-                
-                // Add hook for future admin init calls
-                if (method_exists($class, 'admin_init')) {
-                    add_action('admin_init', function() use ($class) {
-                        if (class_exists($class)) {
-                            call_user_func([$class, 'admin_init']);
-                        }
-                    });
-                }
-            } else {
-                return new \WP_Error('module_class_not_found', __('Module class not found', 'ymodules'));
+                });
             }
             
             return true;
+            
         } catch (\Exception $e) {
-            return new \WP_Error('module_init_error', __('Error initializing module', 'ymodules'));
+            // Log the exception and return error
+            error_log('YModules: Exception activating module ' . $slug . ': ' . $e->getMessage());
+            return new \WP_Error('activation_exception', $e->getMessage());
         }
     }
     
@@ -347,8 +372,17 @@ class ModuleManager {
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
         
-        // Set module as inactive in options
-        update_option('ymodules_' . $slug . '_active', false);
+        // Get active modules list
+        $active_modules = get_option('ymodules_active_modules', []);
+        
+        // Check if module is active
+        if (!in_array($slug, $active_modules)) {
+            return true; // Already inactive
+        }
+        
+        // Remove module from active list
+        $active_modules = array_diff($active_modules, [$slug]);
+        update_option('ymodules_active_modules', $active_modules);
         
         return true;
     }
@@ -383,28 +417,27 @@ class ModuleManager {
      * @param string $slug Module slug
      * @return bool True if module exists, false otherwise
      */
-    private function module_exists($slug) {
-        $module_dir = $this->get_module_directory($slug);
-        return is_dir($module_dir);
+    public function module_exists($slug) {
+        return is_dir($this->get_module_directory($slug));
     }
     
     /**
-     * Gets the absolute path to a module directory
+     * Gets the directory path for a module
      * 
      * @param string $slug Module slug
-     * @return string Absolute path to module directory
+     * @return string Module directory path
      */
-    private function get_module_directory($slug) {
+    public function get_module_directory($slug) {
         return $this->modules_dir . $slug . '/';
     }
     
     /**
-     * Gets module information from module.json
+     * Gets module information from module.json file
      * 
      * @param string $slug Module slug
      * @return array|WP_Error Module information on success, WP_Error on failure
      */
-    private function get_module_info($slug) {
+    public function get_module_info($slug) {
         $module_dir = $this->get_module_directory($slug);
         
         // First check in root
@@ -437,32 +470,51 @@ class ModuleManager {
     }
     
     /**
-     * Finds the module's main PHP file
+     * Finds the module's main PHP file with support for PSR-4 style autoloading structures
      * 
      * @param string $slug Module slug
-     * @return string|false Path to module file on success, false on failure
+     * @return string|false Path to module file or false if not found
      */
-    private function find_module_file($slug) {
+    public function find_module_file($slug) {
         $module_dir = $this->get_module_directory($slug);
         
-        // Check for src/module.php (lowercase only)
-        $module_file = $module_dir . 'src/module.php';
-        if (file_exists($module_file)) {
-            return $module_file;
-        }
+        error_log('YModules Debug: Searching for module file in directory: ' . $module_dir);
         
-        // Check for a single subdirectory
-        $items = scandir($module_dir);
-        $items = array_diff($items, ['.', '..']);
+        // Check common file locations following PSR conventions
+        $possible_locations = [
+            // Direct module file in src directory (most common)
+            $module_dir . 'src/module.php',
+            $module_dir . 'src/Module.php',
+            
+            // PSR-4 style with class name matching directory
+            $module_dir . 'src/' . ucfirst($slug) . '.php',
+            
+            // Root module file (less common)
+            $module_dir . 'module.php',
+            $module_dir . 'Module.php',
+            
+            // Legacy or alternative locations
+            $module_dir . 'index.php',
+            $module_dir . 'init.php'
+        ];
         
-        if (count($items) === 1 && is_dir($module_dir . reset($items))) {
-            $subdir = reset($items);
-            $module_file = $module_dir . $subdir . '/src/module.php';
-            if (file_exists($module_file)) {
-                return $module_file;
+        foreach ($possible_locations as $location) {
+            error_log('YModules Debug: Checking location: ' . $location . ' - ' . (file_exists($location) ? 'EXISTS' : 'NOT FOUND') . ' - ' . (is_readable($location) ? 'READABLE' : 'NOT READABLE'));
+            
+            if (file_exists($location) && is_readable($location)) {
+                error_log('YModules Debug: Found module file at: ' . $location);
+                return $location;
             }
         }
         
+        // If no specific file is found, check in src directory for any PHP file
+        $php_files = glob($module_dir . 'src/*.php');
+        if (!empty($php_files)) {
+            error_log('YModules Debug: Found alternative PHP file at: ' . $php_files[0]);
+            return $php_files[0];
+        }
+        
+        error_log('YModules Debug: No module file found for ' . $slug);
         return false;
     }
 
@@ -489,5 +541,33 @@ class ModuleManager {
         }
 
         @rmdir($dir);
+    }
+
+    /**
+     * Lists all files in a directory recursively for debugging purposes
+     * 
+     * @param string $dir Directory to list
+     * @return array Array of file paths
+     */
+    private function list_directory_contents($dir) {
+        $results = [];
+        $files = scandir($dir);
+        
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+            
+            $path = $dir . '/' . $file;
+            
+            if (is_dir($path)) {
+                $results[] = $path . '/ (directory)';
+                $results = array_merge($results, $this->list_directory_contents($path));
+            } else {
+                $results[] = $path . ' (' . filesize($path) . ' bytes)';
+            }
+        }
+        
+        return $results;
     }
 } 
