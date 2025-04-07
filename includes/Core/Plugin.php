@@ -49,7 +49,30 @@ class Plugin {
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         
+        // Optimize performance by reducing unnecessary requests
+        $this->optimize_micro_requests();
+        
         $this->setup_ajax_handlers();
+    }
+
+    /**
+     * Optimizes performance by reducing WordPress micro-requests
+     * 
+     * Follows Y Modules Manifesto principle of Minimal Requests
+     */
+    private function optimize_micro_requests() {
+        // Загружаем информацию о модулях напрямую при рендеринге страницы
+        add_action('admin_head', function() {
+            if (isset($_GET['page']) && $_GET['page'] === 'ymodules') {
+                $modules = $this->module_manager->get_installed_modules();
+                echo '<script>
+                    // Предзагруженные данные модулей
+                    window.ymodulesPreloadedData = ' . json_encode([
+                        'modules' => $modules
+                    ]) . ';
+                </script>';
+            }
+        });
     }
 
     /**

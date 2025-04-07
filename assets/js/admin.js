@@ -1,5 +1,15 @@
+/**
+ * YModules Admin Interface
+ * 
+ * Manages the admin interface for YModules following the Y Modules Manifesto principles:
+ * - Zero Redundancy: Optimized code with minimal duplication
+ * - Minimal Requests: Using pre-loaded data instead of AJAX
+ * - Maximal Performance: Efficient DOM operations
+ */
 jQuery(document).ready(function($) {
-    // Modal handling
+    /**
+     * Modal management
+     */
     function openModal(modalId) {
         $(modalId).removeClass('hidden');
     }
@@ -8,7 +18,7 @@ jQuery(document).ready(function($) {
         $(modalId).addClass('hidden');
     }
 
-    // Close modal when clicking outside
+    // Close modal and reset form
     $('.ymodules-close-modal').on('click', function() {
         const modal = $(this).closest('.fixed');
         closeModal(modal);
@@ -22,11 +32,14 @@ jQuery(document).ready(function($) {
         openModal('#ymodules-upload-modal');
     });
 
+    /**
+     * File upload handling
+     */
     // Handle file selection
     $('#module-file').on('change', function() {
         const file = this.files[0];
         if (file) {
-            // Проверка на ZIP-файл
+            // Validate ZIP file
             if (!file.name.toLowerCase().endsWith('.zip')) {
                 alert('Please select a ZIP file');
                 $(this).val('');
@@ -41,54 +54,87 @@ jQuery(document).ready(function($) {
         }
     });
 
-    // Handle drag and drop
-    $('.border-dashed').on('dragover', function(e) {
-        e.preventDefault();
-        $(this).addClass('border-blue-500 bg-blue-50');
-    }).on('dragleave', function(e) {
-        e.preventDefault();
-        $(this).removeClass('border-blue-500 bg-blue-50');
-    }).on('drop', function(e) {
-        e.preventDefault();
-        $(this).removeClass('border-blue-500 bg-blue-50');
-        
-        const file = e.originalEvent.dataTransfer.files[0];
-        if (file) {
-            // Проверка на ZIP-файл
-            if (!file.name.toLowerCase().endsWith('.zip')) {
-                alert('Please select a ZIP file');
-                return;
-            }
-            
-            $('#module-file')[0].files = e.originalEvent.dataTransfer.files;
-            $('#selected-file-name').text(file.name);
-            $('#file-info').removeClass('hidden');
-        }
-    });
+    /**
+     * Drag and drop functionality
+     */
+    const dropZone = $('.border-dashed');
+    
+    // Only setup drag and drop if the drop zone exists
+    if (dropZone.length > 0) {
+        // Prevent default drag events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.on(eventName, preventDefaults);
+        });
 
-    // Handle file upload
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Handle drag events styling
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.on(eventName, highlight);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.on(eventName, unhighlight);
+        });
+
+        function highlight() {
+            dropZone.addClass('border-indigo-500 bg-indigo-50');
+        }
+
+        function unhighlight() {
+            dropZone.removeClass('border-indigo-500 bg-indigo-50');
+        }
+
+        // Handle file drop
+        dropZone.on('drop', function(e) {
+            e.preventDefault();
+            
+            const file = e.originalEvent.dataTransfer.files[0];
+            if (file) {
+                // Validate ZIP file
+                if (!file.name.toLowerCase().endsWith('.zip')) {
+                    alert('Please select a ZIP file');
+                    return;
+                }
+                
+                $('#module-file')[0].files = e.originalEvent.dataTransfer.files;
+                $('#selected-file-name').text(file.name);
+                $('#file-info').removeClass('hidden');
+            }
+        });
+    }
+
+    /**
+     * Module upload form submission
+     */
     $('#ymodules-upload-form').on('submit', function(e) {
         e.preventDefault();
         
         const formData = new FormData();
         const fileInput = $('#module-file')[0];
         
+        // Validate file selection
         if (fileInput.files.length === 0) {
             alert('Please select a file to upload');
             return;
         }
 
+        // Prepare form data
         formData.append('action', 'ymodules_upload_module');
         formData.append('nonce', ymodulesAdmin.nonce);
         formData.append('module', fileInput.files[0]);
 
+        // Send AJAX request
         $.ajax({
             url: ymodulesAdmin.ajaxUrl,
             type: 'POST',
             data: formData,
             processData: false,
             contentType: false,
-            beforeSend: function(xhr) {
+            beforeSend: function() {
                 // Show loading state
                 $('#ymodules-upload-form button[type="submit"]').prop('disabled', true).html(
                     '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
@@ -99,7 +145,7 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    // Показываем успешное сообщение
+                    // Show success message
                     const successHtml = `
                         <div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50">
                             <div class="flex items-center">
@@ -115,12 +161,12 @@ jQuery(document).ready(function($) {
                     
                     $('#file-info').html(successHtml);
                     
-                    // Перезагружаем страницу через 2 секунды
+                    // Reload page after delay
                     setTimeout(function() {
                         window.location.reload();
                     }, 2000);
                 } else {
-                    // Показываем ошибку
+                    // Show error message
                     const errorHtml = `
                         <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50">
                             <div class="flex items-center">
@@ -137,8 +183,8 @@ jQuery(document).ready(function($) {
                     $('#file-info').html(errorHtml).removeClass('hidden');
                 }
             },
-            error: function(xhr, status, error) {
-                // Показываем ошибку
+            error: function() {
+                // Show error message for AJAX failure
                 const errorHtml = `
                     <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50">
                         <div class="flex items-center">
@@ -161,55 +207,25 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // Cache for modules list
-    let modulesCache = null;
-    let lastModulesUpdate = 0;
-    const CACHE_DURATION = 30000; // 30 seconds
-
-    // Load modules on page load
-    loadModules();
-
-    function loadModules(forceReload = false) {
-        const now = Date.now();
-        
-        // Return cached data if available and not expired
-        if (!forceReload && modulesCache && (now - lastModulesUpdate) < CACHE_DURATION) {
-            updateModulesList(modulesCache);
+    /**
+     * Module list rendering from preloaded data
+     */
+    const $modulesGrid = $('#ymodules-grid');
+    
+    if ($modulesGrid.length > 0 && window.ymodulesPreloadedData) {
+        const modules = window.ymodulesPreloadedData.modules || [];
+        renderModules(modules);
+    }
+    
+    function renderModules(modules) {
+        if (!$modulesGrid || $modulesGrid.length === 0) {
             return;
         }
 
-        $.ajax({
-            url: ymodulesAdmin.ajaxUrl,
-            type: 'POST',
-            data: {
-                action: 'ymodules_get_modules',
-                nonce: ymodulesAdmin.nonce
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Ensure we have an array of modules
-                    const modules = Array.isArray(response.data) ? response.data : 
-                                  (response.data.modules ? response.data.modules : []);
-                    
-                    modulesCache = modules;
-                    lastModulesUpdate = now;
-                    updateModulesList(modules);
-                } else {
-                    updateModulesList([]); // Show empty state
-                }
-            },
-            error: function(xhr, status, error) {
-                updateModulesList([]); // Show empty state
-            }
-        });
-    }
-
-    function updateModulesList(modules) {
-        const $grid = $('#ymodules-grid');
-        $grid.empty();
+        $modulesGrid.empty();
 
         if (!Array.isArray(modules) || modules.length === 0) {
-            $grid.html('<div class="text-center py-8 text-gray-500">No modules installed</div>');
+            $modulesGrid.html('<div class="text-center py-8 text-gray-500">No modules installed</div>');
             return;
         }
 
@@ -262,11 +278,13 @@ jQuery(document).ready(function($) {
                 </div>
             `);
 
-            $grid.append(card);
+            $modulesGrid.append(card);
         });
     }
 
-    // Handle module details view
+    /**
+     * Module details view
+     */
     $(document).on('click', '.view-module-details', function() {
         const module = $(this).data('module');
         
@@ -278,43 +296,9 @@ jQuery(document).ready(function($) {
         openModal('#ymodules-details-modal');
     });
 
-    // Drag and drop handling
-    const dropZone = $('.border-dashed');
-    
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.on(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.on(eventName, highlight, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.on(eventName, unhighlight, false);
-    });
-
-    function highlight(e) {
-        dropZone.addClass('border-indigo-500 bg-indigo-50');
-    }
-
-    function unhighlight(e) {
-        dropZone.removeClass('border-indigo-500 bg-indigo-50');
-    }
-
-    dropZone.on('drop', handleDrop, false);
-
-    function handleDrop(e) {
-        const dt = e.originalEvent.dataTransfer;
-        const files = dt.files;
-
-        $('#module-file')[0].files = files;
-    }
-
+    /**
+     * Module operations: Activation, Deactivation, Deletion
+     */
     // Handle module activation
     $(document).on('click', '.activate-module', function() {
         const slug = $(this).data('slug');
@@ -328,26 +312,7 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        $.ajax({
-            url: ymodulesAdmin.ajaxUrl,
-            type: 'POST',
-            data: {
-                action: 'ymodules_activate_module',
-                nonce: ymodulesAdmin.nonce,
-                slug: slug
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Просто перезагружаем страницу
-                    window.location.reload();
-                } else {
-                    alert(response.data.message || 'Failed to activate module');
-                }
-            },
-            error: function() {
-                alert('Failed to activate module. Please try again.');
-            }
-        });
+        executeModuleOperation('ymodules_activate_module', slug, 'Failed to activate module');
     });
 
     // Handle module deactivation
@@ -363,26 +328,7 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        $.ajax({
-            url: ymodulesAdmin.ajaxUrl,
-            type: 'POST',
-            data: {
-                action: 'ymodules_deactivate_module',
-                nonce: ymodulesAdmin.nonce,
-                slug: slug
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Просто перезагружаем страницу
-                    window.location.reload();
-                } else {
-                    alert(response.data.message || 'Failed to deactivate module');
-                }
-            },
-            error: function() {
-                alert('Failed to deactivate module. Please try again.');
-            }
-        });
+        executeModuleOperation('ymodules_deactivate_module', slug, 'Failed to deactivate module');
     });
 
     // Handle module deletion
@@ -398,25 +344,36 @@ jQuery(document).ready(function($) {
             return;
         }
         
+        executeModuleOperation('ymodules_delete_module', slug, 'Failed to delete module');
+    });
+
+    /**
+     * Common function for module operations to reduce redundancy
+     * 
+     * @param {string} action AJAX action to perform
+     * @param {string} slug Module slug
+     * @param {string} errorMessage Error message to show on failure
+     */
+    function executeModuleOperation(action, slug, errorMessage) {
         $.ajax({
             url: ymodulesAdmin.ajaxUrl,
             type: 'POST',
             data: {
-                action: 'ymodules_delete_module',
+                action: action,
                 nonce: ymodulesAdmin.nonce,
                 slug: slug
             },
             success: function(response) {
                 if (response.success) {
-                    // Просто перезагружаем страницу
+                    // Reload page to reflect changes
                     window.location.reload();
                 } else {
-                    alert(response.data.message || 'Failed to delete module');
+                    alert(response.data.message || errorMessage);
                 }
             },
             error: function() {
-                alert('Failed to delete module. Please try again.');
+                alert(errorMessage + '. Please try again.');
             }
         });
-    });
+    }
 }); 
