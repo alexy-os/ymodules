@@ -1,15 +1,31 @@
 <?php
 namespace YModules\Core;
 
+/**
+ * Module Manager
+ * 
+ * Handles module installation, activation, deactivation,
+ * and management within the YModules system
+ */
 class ModuleManager {
+    /** @var string Path to modules directory */
     private $modules_dir;
+    
+    /** @var array Allowed file extensions for module archives */
     private $allowed_extensions = ['zip'];
+    
+    /** @var array Explicitly denied file extensions for security */
     private $denied_extensions = [
         'phtml', 'php', 'php3', 'php4', 'php5', 'php6', 'php7', 'phps', 'cgi', 'pl', 'asp', 
         'aspx', 'shtml', 'shtm', 'htaccess', 'htpasswd', 'ini', 'log', 'sh', 'js', 'html', 
         'htm', 'css', 'sql', 'spl', 'scgi', 'fcgi'
     ];
 
+    /**
+     * Constructor
+     * 
+     * Initializes module manager and ensures module directory exists
+     */
     public function __construct() {
         $this->modules_dir = YMODULES_MODULES_DIR;
         
@@ -19,15 +35,24 @@ class ModuleManager {
         }
     }
 
+    /**
+     * Installs a module from an uploaded file
+     * 
+     * @param array $file Uploaded file information from $_FILES
+     * @return array|WP_Error Module information on success, WP_Error on failure
+     */
     public function install_module($file) {
+        // Validate ZIP extension availability
         if (!extension_loaded('zip')) {
             return new \WP_Error('zip_extension', __('ZIP extension is not loaded', 'ymodules'));
         }
 
+        // Validate uploaded file
         if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
             return new \WP_Error('invalid_file', __('Invalid file upload', 'ymodules'));
         }
 
+        // Check file extension
         $file_info = pathinfo($file['name']);
         $extension = strtolower($file_info['extension']);
 
@@ -59,7 +84,7 @@ class ModuleManager {
             return new \WP_Error('zip_error', $error_message);
         }
 
-        // Try to extract
+        // Extract ZIP contents to temporary directory
         if (!$zip->extractTo($temp_dir)) {
             $zip->close();
             $this->cleanup_temp_dir($temp_dir);
@@ -75,9 +100,10 @@ class ModuleManager {
             return $module_info;
         }
 
-        // Move module to final location
+        // Prepare final module location
         $module_dir = $this->modules_dir . $module_info['slug'] . '/';
 
+        // Remove existing module directory if it exists
         if (is_dir($module_dir)) {
             $this->cleanup_temp_dir($module_dir);
         }
@@ -88,19 +114,26 @@ class ModuleManager {
             return new \WP_Error('create_dir_error', __('Failed to create module directory', 'ymodules'));
         }
 
-        // Copy files from temp to final location
+        // Copy files from temporary directory to final location
         if (!$this->copy_directory($temp_dir, $module_dir)) {
             $this->cleanup_temp_dir($temp_dir);
             $this->cleanup_temp_dir($module_dir);
             return new \WP_Error('copy_error', __('Failed to copy module files', 'ymodules'));
         }
 
-        // Clean up temp directory
+        // Clean up temporary directory
         $this->cleanup_temp_dir($temp_dir);
 
         return $module_info;
     }
 
+    /**
+     * Recursively copies a directory
+     * 
+     * @param string $source Source directory path
+     * @param string $destination Destination directory path
+     * @return bool True on success, false on failure
+     */
     private function copy_directory($source, $destination) {
         if (!is_dir($source)) {
             return false;
@@ -114,6 +147,7 @@ class ModuleManager {
 
         $dir = dir($source);
         while (($file = $dir->read()) !== false) {
+            // Skip dots
             if ($file === '.' || $file === '..') {
                 continue;
             }
@@ -122,10 +156,12 @@ class ModuleManager {
             $dest_path = $destination . '/' . $file;
 
             if (is_dir($source_path)) {
+                // Recursively copy subdirectories
                 if (!$this->copy_directory($source_path, $dest_path)) {
                     return false;
                 }
             } else {
+                // Copy files
                 if (!@copy($source_path, $dest_path)) {
                     return false;
                 }
@@ -136,29 +172,36 @@ class ModuleManager {
         return true;
     }
 
+    /**
+     * Validates module structure and requirements
+     * 
+     * @param string $dir Directory to validate
+     * @return array|WP_Error Module information on success, WP_Error on failure
+     */
     private function validate_module_structure($dir) {
-        // First, check if we have a single directory inside
+        // Handle single directory inside ZIP
         $items = scandir($dir);
         $items = array_diff($items, ['.', '..']);
         
         if (count($items) === 1 && is_dir($dir . '/' . reset($items))) {
-            // We have a single directory, use it as the module root
+            // Use the single directory as module root
             $dir = $dir . '/' . reset($items) . '/';
         }
 
-        // Check for module.json in root
+        // Check for required files
+        // 1. module.json in root
         $json_path = $dir . 'module.json';
         if (!file_exists($json_path)) {
             return new \WP_Error('missing_file', __('Missing required file: module.json', 'ymodules'));
         }
 
-        // Check for module.php in src directory
+        // 2. module.php in src directory (lowercase only)
         $module_php_path = $dir . 'src/module.php';
         if (!file_exists($module_php_path)) {
             return new \WP_Error('missing_file', __('Missing required file: src/module.php', 'ymodules'));
         }
 
-        // Parse module.json
+        // Parse and validate module.json
         $json_content = file_get_contents($json_path);
         $module_info = json_decode($json_content, true);
 
@@ -170,7 +213,10 @@ class ModuleManager {
         $required_fields = ['name', 'version', 'description', 'author'];
         foreach ($required_fields as $field) {
             if (!isset($module_info[$field])) {
-                return new \WP_Error('missing_field', sprintf(__('Missing required field in module.json: %s', 'ymodules'), $field));
+                return new \WP_Error(
+                    'missing_field', 
+                    sprintf(__('Missing required field in module.json: %s', 'ymodules'), $field)
+                );
             }
         }
 
@@ -180,9 +226,18 @@ class ModuleManager {
         return $module_info;
     }
 
+    /**
+     * Gets list of installed modules
+     * 
+     * @return array Array of module information
+     */
     public function get_installed_modules() {
         $modules = [];
         $dirs = glob($this->modules_dir . '*', GLOB_ONLYDIR);
+
+        if (!$dirs) {
+            return $modules;
+        }
 
         foreach ($dirs as $dir) {
             // First check in root
@@ -200,7 +255,9 @@ class ModuleManager {
             }
 
             if (file_exists($module_file)) {
-                $module_info = json_decode(file_get_contents($module_file), true);
+                $json_content = file_get_contents($module_file);
+                $module_info = json_decode($json_content, true);
+                
                 if ($module_info) {
                     $module_info['slug'] = basename($dir);
                     $module_info['active'] = get_option('ymodules_' . $module_info['slug'] . '_active', false);
@@ -212,8 +269,14 @@ class ModuleManager {
         return $modules;
     }
 
+    /**
+     * Activates a module
+     * 
+     * @param string $slug Module slug
+     * @return bool|WP_Error True on success, WP_Error on failure
+     */
     public function activate_module($slug) {
-        // Validate slug
+        // Validate module existence
         if (!$this->module_exists($slug)) {
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
@@ -227,14 +290,14 @@ class ModuleManager {
         // Set module as active in options
         update_option('ymodules_' . $slug . '_active', true);
         
-        // Load the module's main file
+        // Load module file
         $module_file = $this->find_module_file($slug);
         
         if (!$module_file) {
             return new \WP_Error('module_file_not_found', __('Module file not found', 'ymodules'));
         }
         
-        // Include the module's main file
+        // Include and initialize module
         try {
             include_once $module_file;
             
@@ -249,7 +312,7 @@ class ModuleManager {
                     call_user_func([$class, 'init']);
                 }
                 
-                // Initialize admin functionality
+                // Initialize admin functionality if in admin
                 if (is_admin() && method_exists($class, 'admin_init')) {
                     call_user_func([$class, 'admin_init']);
                 }
@@ -272,8 +335,14 @@ class ModuleManager {
         }
     }
     
+    /**
+     * Deactivates a module
+     * 
+     * @param string $slug Module slug
+     * @return bool|WP_Error True on success, WP_Error on failure
+     */
     public function deactivate_module($slug) {
-        // Validate slug
+        // Validate module existence
         if (!$this->module_exists($slug)) {
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
@@ -284,8 +353,14 @@ class ModuleManager {
         return true;
     }
     
+    /**
+     * Deletes a module
+     * 
+     * @param string $slug Module slug
+     * @return bool|WP_Error True on success, WP_Error on failure
+     */
     public function delete_module($slug) {
-        // Validate slug
+        // Validate module existence
         if (!$this->module_exists($slug)) {
             return new \WP_Error('module_not_found', __('Module not found', 'ymodules'));
         }
@@ -302,15 +377,33 @@ class ModuleManager {
         return true;
     }
     
+    /**
+     * Checks if a module exists
+     * 
+     * @param string $slug Module slug
+     * @return bool True if module exists, false otherwise
+     */
     private function module_exists($slug) {
         $module_dir = $this->get_module_directory($slug);
         return is_dir($module_dir);
     }
     
+    /**
+     * Gets the absolute path to a module directory
+     * 
+     * @param string $slug Module slug
+     * @return string Absolute path to module directory
+     */
     private function get_module_directory($slug) {
         return $this->modules_dir . $slug . '/';
     }
     
+    /**
+     * Gets module information from module.json
+     * 
+     * @param string $slug Module slug
+     * @return array|WP_Error Module information on success, WP_Error on failure
+     */
     private function get_module_info($slug) {
         $module_dir = $this->get_module_directory($slug);
         
@@ -332,7 +425,9 @@ class ModuleManager {
             return new \WP_Error('module_info_not_found', __('Module information not found', 'ymodules'));
         }
         
-        $module_info = json_decode(file_get_contents($module_file), true);
+        $json_content = file_get_contents($module_file);
+        $module_info = json_decode($json_content, true);
+        
         if (!$module_info) {
             return new \WP_Error('invalid_module_info', __('Invalid module information', 'ymodules'));
         }
@@ -341,6 +436,12 @@ class ModuleManager {
         return $module_info;
     }
     
+    /**
+     * Finds the module's main PHP file
+     * 
+     * @param string $slug Module slug
+     * @return string|false Path to module file on success, false on failure
+     */
     private function find_module_file($slug) {
         $module_dir = $this->get_module_directory($slug);
         
@@ -365,6 +466,11 @@ class ModuleManager {
         return false;
     }
 
+    /**
+     * Recursively cleans up a directory
+     * 
+     * @param string $dir Directory to clean
+     */
     private function cleanup_temp_dir($dir) {
         if (!is_dir($dir)) {
             return;

@@ -7,6 +7,7 @@ A simple YModules module that displays a welcome page in the WordPress admin.
 - Adds a "Welcome" admin menu item
 - Displays a clean, Tailwind-styled admin page
 - Demonstrates basic YModules structure and functionality
+- Fully compliant with the Y Modules Manifesto principles
 
 ## Installation
 
@@ -23,6 +24,16 @@ welcome-module/
 └── src/
     └── module.php - Main module code
 ```
+
+## Y Modules Compliance
+
+This module follows the core principles of the Y Modules Manifesto:
+
+1. **Zero Redundancy**: Minimal, focused code with no superfluous dependencies
+2. **Minimal Requests**: Only essential backend interactions
+3. **Maximal Performance**: Optimized for speed in both perception and reality
+4. **Self-contained**: Minimizes dependencies between modules
+5. **Purpose-driven**: Solves a specific problem without scope creep
 
 ## Customization
 
