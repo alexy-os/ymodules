@@ -1,0 +1,6 @@
+.cursorignore
+.manual/
+.vscode/
+.idea/
+.examples/
+

@@ -1,0 +1,20 @@
+{
+    "name": "Sample Module",
+    "version": "1.0.0",
+    "description": "A sample module demonstrating the Y Modules structure and capabilities.",
+    "author": "Your Name",
+    "requires": {
+        "php": "7.4",
+        "wordpress": "5.8"
+    },
+    "dependencies": [],
+    "autoload": {
+        "psr-4": {
+            "YModules\\Sample\\": "src/"
+        }
+    },
+    "hooks": {
+        "init": "YModules\\Sample\\Module::init",
+        "admin_init": "YModules\\Sample\\Module::admin_init"
+    }
+} 
