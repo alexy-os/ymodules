@@ -39,21 +39,14 @@ class Module {
      * Setup admin functionality
      */
     private function setup_admin() {
-        error_log('YModules Welcome Debug: setup_admin called');
         add_action('admin_menu', [$this, 'add_admin_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-        
-        // Add immediate test to see if this code is executing
-        error_log('YModules Welcome Debug: Current hooks: ' . implode(', ', array_keys($GLOBALS['wp_filter'])));
     }
     
     /**
      * Add admin menu
      */
     public function add_admin_menu() {
-        error_log('YModules Welcome Debug: add_admin_menu called');
-        
-        // Add a test to see if this is being called
         add_menu_page(
             __('Welcome Page', 'ymodules'),
             __('Welcome', 'ymodules'),
@@ -63,8 +56,6 @@ class Module {
             'dashicons-welcome-learn-more',
             30
         );
-        
-        error_log('YModules Welcome Debug: Menu should be added now');
     }
     
     /**
@@ -138,5 +129,18 @@ class Module {
             </div>
         </div>
         <?php
+    }
+    
+    /**
+     * Static method for admin_menu hook
+     * 
+     * This allows WordPress to call the method directly using the static approach
+     */
+    public static function admin_menu() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        
+        self::$instance->add_admin_menu();
     }
 } 
