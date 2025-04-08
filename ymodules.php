@@ -32,33 +32,24 @@ define('YMODULES_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('YMODULES_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('YMODULES_MODULES_DIR', YMODULES_PLUGIN_DIR . 'modules/');
 
-// Require core files
-require_once YMODULES_PLUGIN_DIR . 'includes/Core/ModuleManager.php';
-require_once YMODULES_PLUGIN_DIR . 'includes/Core/Plugin.php';
+// Define new structure constants
+define('YMODULES_SRC_DIR', YMODULES_PLUGIN_DIR . 'src/');
+define('YMODULES_SRC_URL', YMODULES_PLUGIN_URL . 'src/');
+define('YMODULES_ASSETS_DIR', YMODULES_PLUGIN_DIR . 'assets/');
+define('YMODULES_ASSETS_URL', YMODULES_PLUGIN_URL . 'assets/');
+define('YMODULES_SRC_ASSETS_DIR', YMODULES_SRC_DIR . 'assets/');
+define('YMODULES_SRC_ASSETS_URL', YMODULES_SRC_URL . 'assets/');
+
+// Include the autoloader
+require_once YMODULES_PLUGIN_DIR . 'autoload.php';
 
 // Initialize plugin
 function ymodules_init() {
-    error_log('YModules Debug: Plugin initialization started');
-    
-    // Check if we're in admin and at what point
-    if (is_admin()) {
-        error_log('YModules Debug: Initializing in admin context');
-        error_log('YModules Debug: Current action: ' . (current_action() ?: 'None'));
-        error_log('YModules Debug: admin_menu did_action: ' . did_action('admin_menu'));
-    }
-    
-    return \YModules\Core\Plugin::get_instance();
+    // Create and initialize YModules with WordPress adapter
+    return \YModules\YModules::getInstance([
+        'plugin_file' => YMODULES_PLUGIN_FILE
+    ]);
 }
 
 // Start the plugin
 ymodules_init();
-
-// For diagnostic purposes, check admin_menu hook
-add_action('admin_menu', function() {
-    error_log('YModules Debug: admin_menu action fired');
-}, 1);
-
-// Check admin_init hook
-add_action('admin_init', function() {
-    error_log('YModules Debug: admin_init action fired');
-}, 1);
